@@ -33,6 +33,7 @@ class Usercheck(object):
         def wrapper(*args):
             instance, bot, update = args[:3]
             user = update.message.from_user.username
+            instance.last_message = update.message
             if self.userlevel == 'any':
                 auth = True
             elif self.userlevel == 'user':
@@ -159,7 +160,6 @@ class Mainloop(object):
         The basic command to start a chat.
         
         '''
-        self.message = update.message
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['start'])
         # self.keyboard(bot, update)
