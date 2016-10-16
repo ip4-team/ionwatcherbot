@@ -65,7 +65,8 @@ class Mainloop(object):
                     ('user', 'Username for remote login to server')])),
             ('COMM', OrderedDict([
                     ('admins', 'Administrators'),
-                    ('users', 'Trusted users')])),
+                    ('users', 'Trusted users'),
+                    ('queue', 'Join queue')])),
             ('MESSAGES', OrderedDict([
                     ('start', 'Initial greeting, /start command is received by an unknown user'),
                     ('kill', '/kill command is received by an admin'),
@@ -73,7 +74,7 @@ class Mainloop(object):
             ])
     # Fields listed under `optionals` can be left blank in the config file;
     # 'users' specifically can be blank, because 'admins' cannot.
-    optionals = ['server', 'users']
+    optionals = ['server', 'users', 'queue']
 
     
     def __init__(self):
