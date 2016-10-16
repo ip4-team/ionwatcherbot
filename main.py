@@ -101,7 +101,7 @@ class Mainloop(object):
         with open('IonWatcher.cfg', 'w') as f:
             f.write('# Configurations file for IonWatcher Bot\n\n')
             for category in self.cfg_text:
-                f.write(category + '\n\n')
+                f.write('[{}]\n\n'.format(category))
                 for item in self.cfg_text[category]:
                     f.write('# ' + self.cfg_text[category][item] + '\n')
                     f.write('{0} = {1}\n'.format(item, self.config[category][item]))
@@ -122,8 +122,7 @@ class Mainloop(object):
     def kill(self, bot, update):
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['kill'])
-        # self.updater.stop() # is just not working to stop the script
-        os._exit(0)
+        self.updater.stop() # is just not working to stop the script
     
     @usercheck
     def monitor(self, bot, update):
