@@ -8,7 +8,6 @@ Created on Sat Oct 15 17:08:42 2016
 from telegram.ext import Updater, CommandHandler, MessageHandler
 import logging
 import configparser
-import os
 import getpass
 import requests
 from collections import OrderedDict
@@ -16,18 +15,33 @@ import bs4
 import json
 
 
-
-def usercheck(action):
-    def wrapper(*args):
-        instance = args[0]
-        update = args[2]
-        print("Approved command from: " + update.message.from_user.username)
-        if update.message.from_user.username in instance.users:
-            return action(*args)     
-        else:
-            print("Blocked command from: " + update.message.from_user.username)
-            return None
-    return wrapper
+# Decorators
+class Usercheck(object):
+    
+    def __init__(self, userlevel):
+        self.userlevel = userlevel
+    
+    def __call__(self, action):
+        def wrapper(*args):
+            instance, bot, update = args[:3]
+            user = update.message.from_user.username
+            if self.userlevel == 'any':
+                auth = True            
+            elif self.userlevel == 'user':
+                auth = instance.users
+            else:
+                auth = instance.admins
+            if auth is True or user in auth:
+                logging.info("Approved {0} command from: {1}".format( 
+                        update.message.text, update.message.from_user.username))
+                return action(*args)     
+            else:
+                logging.info("Blocked {0} command from: {1}".format( 
+                        update.message.text, update.message.from_user.username))
+                bot.sendMessage(chat_id=update.message.chat_id, 
+                        text=instance.config['MESSAGES']['negate'])
+                return None
+        return wrapper
 
 class Mainloop(object):
     
@@ -38,12 +52,14 @@ class Mainloop(object):
                     ('server', 'Server address'),
                     ('user', 'Username for remote login to server')])),
             ('COMM', OrderedDict([
+                    ('admins', 'Administrators'),
                     ('users', 'Trusted users')])),
             ('MESSAGES', OrderedDict([
-                    ('start', 'Message sent after the /start command is received'),
-                    ('kill', 'Message sent after the /kill command is received')]))
+                    ('start', 'Initial greeting, /start command is received by an unknown user'),
+                    ('kill', '/kill command is received by an admin'),
+                    ('negate', 'Command issued by unauthorized user')]))
             ])
-    optionals = ['server']
+    optionals = ['server', 'users']
 
     
     def __init__(self):
@@ -51,8 +67,8 @@ class Mainloop(object):
         if not self.config:
             print('Invalid configurations file. Aborting.')
             return None
-
-        self.users = self.config['COMM']['users'].split(',')
+        self.admins = self.config['COMM']['admins'].split(',')
+        self.users = self.admins + self.config['COMM']['users'].split(',')
         # Input server and password
         self.server = format_server_address(self.config['NETWORK']['server'])
         user = self.config['NETWORK'].get('user', notblank('Username at ' + self.server))
@@ -62,19 +78,26 @@ class Mainloop(object):
         # Create updater and dispatcher
         self.updater = Updater(token=self.config['NETWORK']['token'])
         dispatcher = self.updater.dispatcher
-        '''
-        logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - '
-                                   '%(message)s', level=logging.INFO)
-        '''
+
+        logging.basicConfig(filename='IonWatcher.log',
+                            format='%(asctime)s - %(name)s - %(levelname)s - '
+                                   '%(message)s',
+                            level=logging.INFO)
+
         # register handlers
         start_handler = CommandHandler('start', self.start)
         dispatcher.add_handler(start_handler)
         kill_handler = CommandHandler('kill', self.kill)
         dispatcher.add_handler(kill_handler)
+        monitor_handler = CommandHandler('monitor', self.monitor)
+        dispatcher.add_handler(monitor_handler)
+        
         
         print('Listening...')
         self.updater.start_polling()
 
+
+    # Config loading and saving
     def get_config(self):
         print('Reading configurations file...')
         config = configparser.ConfigParser()
@@ -114,25 +137,28 @@ class Mainloop(object):
 
     # Bot commands
 
-    @usercheck
+    @Usercheck('any')
     def start(self, bot, update):
         self.message = update.message
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['start'])
+        # self.keyboard(bot, update)
     
 
-    @usercheck
+    @Usercheck('admin')
     def kill(self, bot, update):
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['kill'])
         self.updater.stop() # is just not working to stop the script
     
-    @usercheck
+    @Usercheck('user')
     def monitor(self, bot, update):
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text="Let's pretend I'm reading the 'runs in progress' page...")
         
-        
+    @Usercheck('any')
+    def keyboard(self, bot, update):
+        pass
     
     # Scraping
     
