@@ -12,6 +12,9 @@ import os
 import getpass
 import requests
 from collections import OrderedDict
+import bs4
+import json
+
 
 
 def usercheck(action):
@@ -134,9 +137,32 @@ class Mainloop(object):
     # Scraping
     
     def read_monitor(self):
+        flag = ''
         monitor_table = requests.get(self.server+'monitor/#full',
                                      auth=self.auth, 
                                      verify=False)
+        soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
+        elems=soup.select('script')
+        data = [elem for elem in elems if 'var initial_runs' in elem.text]
+        if not data:
+            flag = 'no_data'
+            return [None, flag]
+        elif len(data) > 1:
+            flag = 'multiple'
+        else:
+            flag = 'ok'
+        good = data[0].text[data[0].text.index('{'):data[0].text.rfind('}')+1]
+        monitor_json = json.loads(good)
+        runs = monitor_json['objects']
+        '''
+        ['resultsName', 'reportLink', 'resource_uri', 'library', 
+        'qualitymetrics', 'barcodeId', 'representative', 'libmetrics', 'eas', 
+        'timeStamp', 'experiment', 'status', 'analysismetrics', 
+        'processedflows', 'autoExempt', 'projects', 'reportStatus', 'id']
+        '''
+        
+            
+        
         
     
 
@@ -153,11 +179,11 @@ def notblank(info, secret = False):
 
 def format_server_address(server):
     # Server address: add 'http://' if missing, add last '/' if missing etc
-    if not server.startswith('https://'):
+    if not server.startswith('http://') and not server.startswith('https://'):
         if not ':' in server:
             if not '//' in server:
                 # Most likely just lacking 'https://' altogether
-                server = 'https://' + server
+                server = 'http://' + server
             else:
                 print(('Please check server address. '
                        'You entered: "{}"').format(server))
