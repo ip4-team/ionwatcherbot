@@ -14,6 +14,18 @@ import requests
 from collections import OrderedDict
 
 
+def usercheck(action):
+    def wrapper(*args):
+        instance = args[0]
+        update = args[2]
+        print("Approved command from: " + update.message.from_user.username)
+        if update.message.from_user.username in instance.users:
+            return action(*args)     
+        else:
+            print("Blocked command from: " + update.message.from_user.username)
+            return None
+    return wrapper
+
 class Mainloop(object):
     
     cfg_text = OrderedDict([
@@ -37,6 +49,7 @@ class Mainloop(object):
             print('Invalid configurations file. Aborting.')
             return None
 
+        self.users = self.config['COMM']['users'].split(',')
         # Input server and password
         self.server = format_server_address(self.config['NETWORK']['server'])
         user = self.config['NETWORK'].get('user', notblank('Username at ' + self.server))
@@ -97,20 +110,22 @@ class Mainloop(object):
 
 
     # Bot commands
-    
+
+    @usercheck
     def start(self, bot, update):
         self.message = update.message
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['start'])
     
-    
+
+    @usercheck
     def kill(self, bot, update):
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['kill'])
         # self.updater.stop() # is just not working to stop the script
         os._exit(0)
     
-    
+    @usercheck
     def monitor(self, bot, update):
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text="Let's pretend I'm reading the 'runs in progress' page...")
@@ -154,6 +169,7 @@ def format_server_address(server):
         server = server + '/'
     print("Will contact: {}".format(server))
     return server
+
 
 if __name__ == '__main__':
     loop = Mainloop()
