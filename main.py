@@ -84,7 +84,9 @@ class Mainloop(object):
         self.users = self.admins + tolist(self.config['COMM']['users'])
         self.server = format_server_address(self.config['NETWORK']['server'])
         # Input user (if not in config) and password (always)
-        user = self.config['NETWORK'].get('user', notblank('Username at ' + self.server))
+        user = self.config['NETWORK'].get('user', None)
+        if not user:
+            user = notblank('Username at {}'.format(self.server))
         self.auth = requests.auth.HTTPBasicAuth(user,
                                                 notblank('password', secret=True))
     
