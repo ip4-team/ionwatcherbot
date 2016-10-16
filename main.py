@@ -17,8 +17,16 @@ import json
 
 # Decorators
 class Usercheck(object):
+    '''
+    This class holds a decorator that will be used to check for user privileges
+    after a command is received.
+    
+    '''
     
     def __init__(self, userlevel):
+        '''
+        `userlevel` can be: 'any', 'user', 'admin'.
+        '''
         self.userlevel = userlevel
     
     def __call__(self, action):
@@ -26,7 +34,7 @@ class Usercheck(object):
             instance, bot, update = args[:3]
             user = update.message.from_user.username
             if self.userlevel == 'any':
-                auth = True            
+                auth = True
             elif self.userlevel == 'user':
                 auth = instance.users
             else:
@@ -45,6 +53,9 @@ class Usercheck(object):
 
 class Mainloop(object):
     
+    # The cfg_text variable must hold  the basic structure of the config file.
+    # At instantiation, the config file is checked for the field listed here.
+    # When saving a config file, only the fields listed here will be saved.
     cfg_text = OrderedDict([
             ('NETWORK', OrderedDict([
                     ('token', 'Register your own copy of this bot with @BotFather, '
@@ -59,6 +70,8 @@ class Mainloop(object):
                     ('kill', '/kill command is received by an admin'),
                     ('negate', 'Command issued by unauthorized user')]))
             ])
+    # Fields listed under `optionals` can be left blank in the config file;
+    # 'users' specifically can be blank, because 'admins' cannot.
     optionals = ['server', 'users']
 
     
@@ -67,10 +80,10 @@ class Mainloop(object):
         if not self.config:
             print('Invalid configurations file. Aborting.')
             return None
-        self.admins = self.config['COMM']['admins'].split(',')
-        self.users = self.admins + self.config['COMM']['users'].split(',')
-        # Input server and password
+        self.admins = tolist(self.config['COMM']['admins'])
+        self.users = self.admins + tolist(self.config['COMM']['users'])
         self.server = format_server_address(self.config['NETWORK']['server'])
+        # Input user (if not in config) and password (always)
         user = self.config['NETWORK'].get('user', notblank('Username at ' + self.server))
         self.auth = requests.auth.HTTPBasicAuth(user,
                                                 notblank('password', secret=True))
@@ -79,6 +92,7 @@ class Mainloop(object):
         self.updater = Updater(token=self.config['NETWORK']['token'])
         dispatcher = self.updater.dispatcher
 
+        # Start log
         logging.basicConfig(filename='IonWatcher.log',
                             format='%(asctime)s - %(name)s - %(levelname)s - '
                                    '%(message)s',
@@ -105,8 +119,8 @@ class Mainloop(object):
         
         # Checking data
         aborting = False
-        for category in self.cfg_text.keys():
-            for item in self.cfg_text[category].keys():
+        for category, items in self.cfg_text.items():
+            for item in items:
                 if item not in config[category] or config[category][item] == '':
                     if item not in self.optionals:
                         aborting = True
@@ -139,6 +153,10 @@ class Mainloop(object):
 
     @Usercheck('any')
     def start(self, bot, update):
+        '''
+        The basic command to start a chat.
+        
+        '''
         self.message = update.message
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['start'])
@@ -147,22 +165,38 @@ class Mainloop(object):
 
     @Usercheck('admin')
     def kill(self, bot, update):
+        '''
+        Stop the updater.
+        '''
+        
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text=self.config['MESSAGES']['kill'])
         self.updater.stop() # is just not working to stop the script
     
+    
     @Usercheck('user')
     def monitor(self, bot, update):
+        '''
+        Return data about the current runs in progress.
+        
+        '''
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text="Let's pretend I'm reading the 'runs in progress' page...")
         
     @Usercheck('any')
     def keyboard(self, bot, update):
+        '''
+        Offer command options to the user.
+        '''
         pass
     
     # Scraping
-    
     def read_monitor(self):
+        '''
+        Scrape data about current runs from the server and return it.
+        
+        '''
+        
         flag = ''
         monitor_table = requests.get(self.server+'monitor/#full',
                                      auth=self.auth, 
@@ -221,6 +255,12 @@ def format_server_address(server):
     print("Will contact: {}".format(server))
     return server
 
+
+def tolist(string):
+    '''
+    return a list of usernames from a comma-separated string.
+    '''
+    return [item.strip() for item in string.split(',')]
 
 if __name__ == '__main__':
     loop = Mainloop()
