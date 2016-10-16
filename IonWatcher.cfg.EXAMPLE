@@ -1,0 +1,27 @@
+# Configurations file for IonWatcher Bot
+
+[NETWORK]
+
+# Register your own copy of this bot with @BotFather, and save your own token below.
+token = aDdYoUrToKenHere:AskBotFatherForIt
+# Server address
+server = myserver.mydomain.edu
+# Username for remote login to server
+user = ionadmin
+
+[COMM]
+
+# Administrators
+admins = MyTelegramNickname
+# Trusted users
+users = 
+
+[MESSAGES]
+
+# Initial greeting, /start command is received by an unknown user
+start = Hello, I am the default implementation of the IonWatcher bot. Please type /start to start interacting.
+# /kill command is received by an admin
+kill = Goodbye, cruel world!
+# Command issued by unauthorized user
+negate = You are not authorized to issue this command. Please type /start to start interacting with this bot.
+
