@@ -5,9 +5,12 @@ Created on Sat Oct 15 17:08:42 2016
 @author: Roberto
 """
 
+# TODO add "clean" to clen files and logs
+# TODO user administration
+
 # pip install python-telegram-bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 import logging
 import configparser
 import getpass
@@ -16,6 +19,7 @@ from collections import OrderedDict
 import bs4
 import json
 import re
+import shutil
 
 
 # Decorators
@@ -36,8 +40,9 @@ class Usercheck(object):
         def wrapper(*args):
             instance, bot, update = args[:3]
             instance.last_update = update
-            message = get_message(update)
-            user = message.chat.username
+            instance.last_bot = bot
+            user = get_user(update)
+            username = user.username
             if update.message:
                 text = update.message.text
             elif update.callback_query:
@@ -45,21 +50,20 @@ class Usercheck(object):
             else:
                 logging.warning("couldn't establish user. update is:" + str(update))
                 return None
-            instance.last_message = update.message
             if self.userlevel == 'any':
                 auth = True
             elif self.userlevel == 'user':
                 auth = instance.users.union(instance.admins)
             else:
                 auth = instance.admins
-            if auth is True or user in auth:
+            if auth is True or username in auth:
                 logging.info("Approved {0} command from: {1}".format( 
-                        text, user))
+                        text, username))
                 return action(*args)     
             else:
                 logging.info("Blocked {0} command from: {1}".format( 
-                        text, user))
-                bot.sendMessage(chat_id=message.chat_id, 
+                        text, username))
+                bot.sendMessage(chat_id=user.id, 
                         text=instance.config['MESSAGES']['negate'])
                 return None
         return wrapper
@@ -101,6 +105,7 @@ class Mainloop(object):
         self.admins = None
         self.users = None
         self.queue = None
+        self.runs = []
         
         # chats are stored in the form: {id: 'status'}, where 'status' can be:
         # 'start', 'adm_join', 'monitor'
@@ -188,105 +193,8 @@ class Mainloop(object):
                 f.write('\n')
             
 
-
-    # Bot commands
-
+    # Bot comm methods, ordered by user level and then alphabetically
     @Usercheck('any')
-    def start(self, bot, update):
-        '''
-        The basic command to start a chat.
-        
-        '''
-        message = get_message(update)
-        # If the message is from a truster user or admin, start keyboard
-        if message.chat.username in self.admins.union(self.users):
-            self.chats[message.chat_id] = 'start'
-            self.keyboard(bot, update)
-        
-        # If the user is still in the queue, inform him/her
-        elif message.chat.username in self.queue:
-                bot.sendMessage(chat_id=message.chat_id, 
-                                text="Hello, {}. I'm afraid you haven't been "
-                                "cleared from the queue yet. Please speak to "
-                                "an administrator to get clearance.".format(
-                                message.chat.username))
-        
-        # If it's a new user, greet him/her
-        else:
-            bot.sendMessage(chat_id=message.chat_id, 
-                            text=self.config['MESSAGES']['start'])
-    
-
-    @Usercheck('any')
-    def join(self, bot, update):
-        '''
-        Add the user to the join queue
-        '''
-        message = get_message(update)
-        if message.chat.username in self.queue:
-            bot.sendMessage(chat_id=message.chat_id, 
-                            text="Hello, {}. You are already in the queue.".format(
-                                message.chat.username))
-        else:
-            bot.sendMessage(chat_id=message.chat_id, 
-                            text="The following users are in the queue:{}".format(
-                                '\n@'.join(self.queue)))
-        if message.chat.username in self.admins:
-            self.chats[message.chat_id] = 'adm_join'
-            self.keyboard(bot, update)
-
-
-    @Usercheck('any')
-    def bye(self, bot, update):
-        message = get_message(update)
-        bot.sendMessage(chat_id=message.chat_id, 
-                        text="Goodbye {}!".format(
-                            message.chat.first_name))
-
-    @Usercheck('admin')
-    def kill(self, bot, update):
-        '''
-        Stop the updater.
-        '''
-        message = get_message(update)
-        bot.sendMessage(chat_id=message.chat_id, 
-                        text=self.config['MESSAGES']['kill'])
-        self.updater.stop() # is just not working to stop the script
-    
-    
-    @Usercheck('user')
-    def monitor(self, bot, update):
-        '''
-        Return data about the current runs in progress.
-        
-        '''
-        message = get_message(update)
-        bot.sendMessage(chat_id=message.chat_id, 
-                        text="Let's pretend I'm reading the 'runs in progress' page...")
-        
-
-    @Usercheck('any')
-    def keyboard(self, bot, update):
-        '''
-        Offer command options to the user.
-        '''
-        keyboard = []
-        message = get_message(update)
-        status = self.chats.get(message.chat_id, 'start')
-        if status == 'start':
-            keyboard.extend(self.keyboards['start'])
-        
-        keyboard.extend(self.keyboards['exit'])
-        if message.chat.username in self.admins:
-            keyboard.extend(self.keyboards['kill'])
-        
-        self.last_keyboard = keyboard
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        message.reply_text("Hello, {}. How can I help you?".format(
-                message.chat.first_name), reply_markup=reply_markup)
-            
-
     def button(self, bot, update):
         query = update.callback_query
         self.this_query = query
@@ -295,15 +203,176 @@ class Mainloop(object):
                   'K': self.kill,
                   'E': self.bye}
                   
-        sender[query.data](bot, update)
+        if query.data in sender:
+            sender[query.data](bot, update)
             
+        elif query.data.startswith("Run_"):
+            run_id = int(query.data[4:])
+            this_run = [run for run in self.runs if run['id']==run_id][0]
+            self.run_report(bot, update, this_run)
+
+    @Usercheck('any')
+    def bye(self, bot, update):
+        user = get_user(update)
+        bot.sendMessage(chat_id=user.id, 
+                        text="Goodbye {}! Type /start to interact again.".format(
+                            user.first_name))
+
+
+    @Usercheck('any')
+    def join(self, bot, update):
+        '''
+        Add the user to the join queue
+        '''
+        user = get_user(update)
+        if user.username in self.queue:
+            bot.sendMessage(chat_id=user.id, 
+                            text="Hello, {}. You are already in the queue.".format(
+                                user.username))
+        else:
+            bot.sendMessage(chat_id=user.id, 
+                            text="The following users are in the queue:{}".format(
+                                '\n@'.join(self.queue)))
+        if user.username in self.admins:
+            self.chats[user.id] = 'adm_join'
+            self.keyboard(bot, update)
+
+
+    @Usercheck('any')
+    def keyboard(self, bot, update):
+        '''
+        Offer command options to the user.
+        '''
+        keyboard = []
+        user = get_user(update)
+        text = "Hello, {}. How can I help you?".format(user.first_name)
+        status = self.chats.get(user.id, 'start')
+        if status == 'start':
+            keyboard.extend(self.keyboards['start'])
+        
+        if status == 'monitor' and self.runs:
+            text = "Select a run for more information:"
+            keyboard.append([InlineKeyboardButton(str(run['id']),
+                    callback_data='Run_'+str(run['id'])) for run in self.runs])
+            
+        keyboard.extend(self.keyboards['exit'])
+        
+        '''
+        if user.username in self.admins:
+            keyboard.extend(self.keyboards['kill'])
+        '''
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
+
+    @Usercheck('any')
+    def start(self, bot, update):
+        '''
+        The basic command to start a chat.
+        
+        '''
+        user = get_user(update)
+        # If the message is from a truster user or admin, start keyboard
+        if user.username in self.admins.union(self.users):
+            self.chats[user.id] = 'start'
+            self.keyboard(bot, update)
+        
+        # If the user is still in the queue, inform him/her
+        elif user.username in self.queue:
+                bot.sendMessage(chat_id=user.id, 
+                                text="Hello, {}. I'm afraid you haven't been "
+                                "cleared from the queue yet. Please speak to "
+                                "an administrator to get clearance.".format(
+                                user.username))
+        
+        # If it's a new user, greet him/her
+        else:
+            bot.sendMessage(chat_id=user.id, 
+                            text=self.config['MESSAGES']['start'])
     
-        bot.editMessageText(text="Selected option: %s" % query.data,
-                            chat_id=query.message.chat_id,
-                            message_id=query.message.message_id)
+
+    @Usercheck('user')
+    def monitor(self, bot, update):
+        '''
+        Return data about the current runs in progress.
+        
+        '''
+        user = get_user(update)
+        self.runs, flag = self.read_monitor()
+        self.runs = sorted(self.runs, key = lambda x: int(x['id']))
+        if flag == 'no_data':
+            bot.sendMessage(chat_id=user.id,
+                            text="I'm sorry {}, I couldn't retrieve any data.".format(
+                            user.first_name))
+            return
+        elif flag == 'multiple':
+            bot.sendMessage(chat_id=user.id, 
+                            text="{}, I found multiple data, which was unexpected."
+                            "However, I hope this is the list of runs.".format(
+                            user.first_name))
+        else:
+            bot.sendMessage(chat_id=user.id, 
+                            text="I have found {0} runs:".format(
+                            len(self.runs)))
+        for run in self.runs:
+            # TODO see flows
+            runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
+            run_dir_id = run['id']
+            run_status = run['status']
+            string = ('[{}]\n{}\n'        
+                      'Status: {}'.format(run_dir_id, runname,         
+                                          run_status))
+            bot.sendMessage(chat_id=user.id, text=string)
+        self.chats[user.id] = 'monitor'
+        self.keyboard(bot, update)
+                
+
+    @Usercheck('user')
+    def run_report(self, bot, update, run):
+        user = get_user(update)
+        # TODO see flows
+        runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
+        run_dir_id = run['id']
+        add_wells = int(run['analysismetrics']['total_wells']) - \
+                            int(run['analysismetrics']['excluded'])
+        bead = int(run['analysismetrics']['bead'])
+        live = int(run['analysismetrics']['live'])
+        lib = int(run['analysismetrics']['lib'])
+        libFinal = int(run['analysismetrics']['libFinal'])
+        key_signal = run['libmetrics']['aveKeyCounts']
+        mean_length = run['libmetrics']['q20_mean_alignment_length']
+        run_status = run['status']
+        loading_ok = (100 * bead/add_wells) >= int(run['experiment']['qcThresholds']['Bead Loading (%)'])
+        usable_ok = (100 * libFinal/lib) >= int(run['experiment']['qcThresholds']['Usable Sequence (%)'])
+        key_sig_ok = key_signal >=  int(run['experiment']['qcThresholds']['Key Signal (1-100)'])
+        string = ('[{}]\n{}\n'
+                  '{} Loading: {:.1%} {}\n'
+                  '{} Live: {:.1%}\n'
+                  '{} Library: {:.1%}\n'
+                  '{} Usable: {:.1%} {}\n'
+                  '{} Key signal: {} {}\n'
+                  'Mean length: {}\n'
+                  'Status: {}'.format(run_dir_id, runname, 
+                                      *pcsquares(bead/add_wells), mark(loading_ok), # Loading
+                                      *pcsquares(live/bead), # Live
+                                      *pcsquares(lib/live), # Library
+                                      *pcsquares(libFinal/lib), mark(usable_ok), # Usable
+                                      pcsquares(key_signal/100)[0], key_signal, mark(key_sig_ok),
+                                      mean_length,
+                                      run_status))        
+        bot.sendMessage(chat_id=user.id, text=string)
+        bot.sendPhoto(chat_id=user.id, photo=open(self.get_image(run_dir_id), 'rb'))
+        self.keyboard(bot, update)
 
 
-      
+    @Usercheck('admin')
+    def kill(self, bot, update):
+        '''
+        Stop the updater.
+        '''
+        user = get_user(update)
+        bot.sendMessage(chat_id=user.id, 
+                        text=self.config['MESSAGES']['kill'])
+        self.updater.stop() # is just not working to stop the script
     
     # Scraping
     def read_monitor(self):
@@ -317,24 +386,40 @@ class Mainloop(object):
                                      auth=self.auth, 
                                      verify=False)
         soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
+        with open('/MyTemporarilySavedFile/monitor/index.html', 'r') as f:
+            recorded_text = f.read()
+            soup = bs4.BeautifulSoup(recorded_text, 'lxml')
         elems=soup.select('script')
         data = [elem for elem in elems if 'var initial_runs' in elem.text]
         if not data:
+            logging.warning("Couldn't fetch data for runs in progress. Dumping soup:")
+            logging.warning(soup.text)
             flag = 'no_data'
             return [None, flag]
         elif len(data) > 1:
+            logging.warning("Multiple entries for runs in progress. Dumping data:")
+            logging.warning(str(data))
             flag = 'multiple'
         else:
             flag = 'ok'
         good = data[0].text[data[0].text.index('{'):data[0].text.rfind('}')+1]
         monitor_json = json.loads(good)
         runs = monitor_json['objects']
-        '''
-        ['resultsName', 'reportLink', 'resource_uri', 'library', 
-        'qualitymetrics', 'barcodeId', 'representative', 'libmetrics', 'eas', 
-        'timeStamp', 'experiment', 'status', 'analysismetrics', 
-        'processedflows', 'autoExempt', 'projects', 'reportStatus', 'id']
-        '''
+        return [runs, flag]
+
+
+    def get_image(self, run_id):
+        filename = 'Bead_density_200.png'
+        loc = 'report/{}/metal/{}'.format(run_id, filename)
+        dest = 'images/{}_{}'.format(run_id, filename)
+        try:
+            response = requests.get(self.server+loc, auth=self.auth,
+                                    verify=False, stream=True)
+            with open(dest, 'wb') as out_file:
+                shutil.copyfileobj(response.raw, out_file)
+            return dest
+        except:
+            return None
         
 
 
@@ -373,13 +458,23 @@ def toset(string):
     return set([item.strip() for item in string.split(',') if item.strip() != ''])
 
 
-def get_message(update):
+def get_user(update):
     if update.message:
-        return update.message
+        return update.message.from_user
     elif update.callback_query:
-        return update.callback_query.message
+        return update.callback_query.from_user
     else:
         return None
+
+def pcsquares(value):
+    valuepc = value  * 100
+    blue = int(min((valuepc // 20)+1, 5))
+    white = 5 - blue
+    return  [u'\U0001F535' * blue + u'\U000026AA' * white, value]
+    
+def mark(boolean):
+    return [u'\U0000274C', u'\U00002705'][boolean]
+
 
 if __name__ == '__main__':
     loop = Mainloop()
