@@ -5,7 +5,8 @@ Created on Sat Oct 15 17:08:42 2016
 @author: Roberto
 """
 
-from telegram.ext import Updater, CommandHandler, MessageHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler
 import logging
 import configparser
 import getpass
@@ -13,6 +14,7 @@ import requests
 from collections import OrderedDict
 import bs4
 import json
+import re
 
 
 # Decorators
@@ -32,21 +34,30 @@ class Usercheck(object):
     def __call__(self, action):
         def wrapper(*args):
             instance, bot, update = args[:3]
-            user = update.message.from_user.username
+            instance.last_update = update
+            if update.message:
+                user = update.message.from_user.username
+                text = update.message.text
+            elif update.callback_query:
+                user = update.callback_query.from_user.username
+                text = "[Button_{}]".format(update.callback_query.data)
+            else:
+                logging.warning("couldn't establish user. update is:" + str(update))
+                return None
             instance.last_message = update.message
             if self.userlevel == 'any':
                 auth = True
             elif self.userlevel == 'user':
-                auth = instance.users
+                auth = instance.users.union(instance.admins)
             else:
                 auth = instance.admins
             if auth is True or user in auth:
                 logging.info("Approved {0} command from: {1}".format( 
-                        update.message.text, update.message.from_user.username))
+                        text, user))
                 return action(*args)     
             else:
                 logging.info("Blocked {0} command from: {1}".format( 
-                        update.message.text, update.message.from_user.username))
+                        text, user))
                 bot.sendMessage(chat_id=update.message.chat_id, 
                         text=instance.config['MESSAGES']['negate'])
                 return None
@@ -77,14 +88,26 @@ class Mainloop(object):
     optionals = ['server', 'users', 'queue']
 
     
+    # Keyboard buttons, based on status
+    keyboards = {'start': [[InlineKeyboardButton("Monitor runs", callback_data='M')],
+                           [InlineKeyboardButton("View queue", callback_data='Q')]],
+                 'kill': [[InlineKeyboardButton("Kill the bot", callback_data='K')]],
+                 'exit': [[InlineKeyboardButton("Exit", callback_data='E')]]
+                                 
+                                 }
+    
     def __init__(self):
-        self.config = self.get_config()
-        if not self.config:
+        self.admins = None
+        self.users = None
+        self.queue = None
+        
+        # chats are stored in the form: {id: 'status'}, where 'status' can be:
+        # 'start', 'adm_join', 'monitor'
+        self.chats = {}
+        config_set = self.get_config()
+        if not config_set:
             print('Invalid configurations file. Aborting.')
             return None
-        self.admins = tolist(self.config['COMM']['admins'])
-        self.users = self.admins + tolist(self.config['COMM']['users'])
-        self.server = format_server_address(self.config['NETWORK']['server'])
         # Input user (if not in config) and password (always)
         user = self.config['NETWORK'].get('user', None)
         if not user:
@@ -103,12 +126,13 @@ class Mainloop(object):
                             level=logging.INFO)
 
         # register handlers
-        start_handler = CommandHandler('start', self.start)
-        dispatcher.add_handler(start_handler)
-        kill_handler = CommandHandler('kill', self.kill)
-        dispatcher.add_handler(kill_handler)
-        monitor_handler = CommandHandler('monitor', self.monitor)
-        dispatcher.add_handler(monitor_handler)
+        dispatcher.add_handler(CommandHandler('start', self.start))
+        dispatcher.add_handler(CommandHandler('kill', self.kill))
+        dispatcher.add_handler(CommandHandler('monitor', self.monitor))
+        dispatcher.add_handler(CommandHandler('join', self.join))
+        dispatcher.add_handler(CommandHandler('bye', self.bye))
+        dispatcher.add_handler(CommandHandler('keyboard', self.keyboard))
+        dispatcher.add_handler(CallbackQueryHandler(self.button))
         
         
         print('Listening...')
@@ -137,18 +161,30 @@ class Mainloop(object):
                     print('Warning: data [{0}] "{1}" not understood.'.format(
                           category, item))
             if aborting:
-                return None
+                return False
             else:
-                return config
+                self.config = config
+                # Admins, users and queue must be transformed to list; pair with save_config
+                self.admins = toset(self.config['COMM']['admins'])
+                self.users = toset(self.config['COMM']['users'])
+                self.queue = toset(self.config['COMM']['queue'])
+                self.server = format_server_address(self.config['NETWORK']['server'])
+                return True
         
     def save_config(self):
+        self.config['COMM']['admins'] = re.sub('[\{\}\']', '', str(self.admins))
+        if self.users:
+            self.config['COMM']['users'] = re.sub('[\{\}\']', '', str(self.users))
+        if self.queue:
+            self.config['COMM']['queue'] = re.sub('[\{\}\']', '', str(self.queue))
+       
         with open('IonWatcher.cfg', 'w') as f:
             f.write('# Configurations file for IonWatcher Bot\n\n')
             for category in self.cfg_text:
                 f.write('[{}]\n\n'.format(category))
                 for item in self.cfg_text[category]:
                     f.write('# ' + self.cfg_text[category][item] + '\n')
-                    f.write('{0} = {1}\n'.format(item, self.config[category][item]))
+                    f.write('{0} = {1}\n'.format(item, str(self.config[category][item])))
                 f.write('\n')
             
 
@@ -161,10 +197,49 @@ class Mainloop(object):
         The basic command to start a chat.
         
         '''
-        bot.sendMessage(chat_id=update.message.chat_id, 
-                        text=self.config['MESSAGES']['start'])
-        # self.keyboard(bot, update)
+        message = update.message
+        # If the message is from a truster user or admin, start keyboard
+        if message.from_user.username in self.admins.union(self.users):
+            self.chats[message.chat_id] = 'start'
+            self.keyboard(bot, update)
+        
+        # If the user is still in the queue, inform him/her
+        elif message.from_user.username in self.queue:
+                bot.sendMessage(chat_id=message.chat_id, 
+                                text="Hello, {}. I'm afraid you haven't been "
+                                "cleared from the queue yet. Please speak to "
+                                "an administrator to get clearance.".format(
+                                message.from_user.username))
+        
+        # If it's a new user, greet him/her
+        else:
+            bot.sendMessage(chat_id=message.chat_id, 
+                            text=self.config['MESSAGES']['start'])
     
+
+    @Usercheck('any')
+    def join(self, bot, update):
+        '''
+        Add the user to the join queue
+        '''
+        if update.message.from_user.username in self.queue:
+            bot.sendMessage(chat_id=update.message.chat_id, 
+                            text="Hello, {}. You are already in the queue.".format(
+                                update.message.from_user.username))
+        else:
+            bot.sendMessage(chat_id=update.message.chat_id, 
+                            text="The following users are in the queue:{}".format(
+                                '\n@'.join(self.queue)))
+        if update.message.from_user.username in self.admins:
+            self.chats[update.message.chat_id] = 'adm_join'
+            self.keyboard(bot, update)
+
+
+    @Usercheck('any')
+    def bye(self, bot, update):
+        bot.sendMessage(chat_id=update.message.chat_id, 
+                        text="Goodbye {}!".format(
+                            update.message.from_user.first_name))
 
     @Usercheck('admin')
     def kill(self, bot, update):
@@ -186,12 +261,44 @@ class Mainloop(object):
         bot.sendMessage(chat_id=update.message.chat_id, 
                         text="Let's pretend I'm reading the 'runs in progress' page...")
         
+
     @Usercheck('any')
     def keyboard(self, bot, update):
         '''
         Offer command options to the user.
         '''
-        pass
+        
+        status = self.chats.get(update.message.chat_id, 'start')
+        if status == 'start':
+            keyboard = self.keyboards['start']
+        
+        keyboard.extend(self.keyboards['exit'])
+        if update.message.from_user.username in self.admins:
+            keyboard.extend(self.keyboards['kill'])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        update.message.reply_text("Hello, {}. How can I help you?".format(
+                update.message.from_user.first_name), reply_markup=reply_markup)
+            
+
+    def button(self, bot, update):
+        query = update.callback_query
+        self.this_query = query
+        sender = {'M': self.monitor,
+                  'Q': self.join,
+                  'K': self.kill,
+                  'E': self.bye}
+                  
+        sender[query.data](bot, update)
+            
+    
+        bot.editMessageText(text="Selected option: %s" % query.data,
+                            chat_id=query.message.chat_id,
+                            message_id=query.message.message_id)
+
+
+      
     
     # Scraping
     def read_monitor(self):
@@ -224,11 +331,6 @@ class Mainloop(object):
         'processedflows', 'autoExempt', 'projects', 'reportStatus', 'id']
         '''
         
-            
-        
-        
-    
-
 
 
 # Helper functions
@@ -259,11 +361,11 @@ def format_server_address(server):
     return server
 
 
-def tolist(string):
+def toset(string):
     '''
-    return a list of usernames from a comma-separated string.
+    return a set of usernames from a comma-separated string.
     '''
-    return [item.strip() for item in string.split(',')]
+    return set([item.strip() for item in string.split(',') if item.strip() != ''])
 
 if __name__ == '__main__':
     loop = Mainloop()

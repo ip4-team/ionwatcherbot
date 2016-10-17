@@ -21,7 +21,7 @@ queue =
 [MESSAGES]
 
 # Initial greeting, /start command is received by an unknown user
-start = Hello, I am the default implementation of the IonWatcher bot. Please type /start to start interacting.
+start = Hello, I am the IonWatcher bot at the ### lab at ###. Please type /join if you wish to be added to the joining queue.
 # /kill command is received by an admin
 kill = Goodbye, cruel world!
 # Command issued by unauthorized user
