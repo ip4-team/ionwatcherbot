@@ -35,11 +35,11 @@ class Usercheck(object):
         def wrapper(*args):
             instance, bot, update = args[:3]
             instance.last_update = update
+            message = get_message(update)
+            user = message.chat.username
             if update.message:
-                user = update.message.from_user.username
                 text = update.message.text
             elif update.callback_query:
-                user = update.callback_query.from_user.username
                 text = "[Button_{}]".format(update.callback_query.data)
             else:
                 logging.warning("couldn't establish user. update is:" + str(update))
@@ -58,7 +58,7 @@ class Usercheck(object):
             else:
                 logging.info("Blocked {0} command from: {1}".format( 
                         text, user))
-                bot.sendMessage(chat_id=update.message.chat_id, 
+                bot.sendMessage(chat_id=message.chat_id, 
                         text=instance.config['MESSAGES']['negate'])
                 return None
         return wrapper
@@ -134,7 +134,6 @@ class Mainloop(object):
         dispatcher.add_handler(CommandHandler('keyboard', self.keyboard))
         dispatcher.add_handler(CallbackQueryHandler(self.button))
         
-        
         print('Listening...')
         self.updater.start_polling()
 
@@ -197,19 +196,19 @@ class Mainloop(object):
         The basic command to start a chat.
         
         '''
-        message = update.message
+        message = get_message(update)
         # If the message is from a truster user or admin, start keyboard
-        if message.from_user.username in self.admins.union(self.users):
+        if message.chat.username in self.admins.union(self.users):
             self.chats[message.chat_id] = 'start'
             self.keyboard(bot, update)
         
         # If the user is still in the queue, inform him/her
-        elif message.from_user.username in self.queue:
+        elif message.chat.username in self.queue:
                 bot.sendMessage(chat_id=message.chat_id, 
                                 text="Hello, {}. I'm afraid you haven't been "
                                 "cleared from the queue yet. Please speak to "
                                 "an administrator to get clearance.".format(
-                                message.from_user.username))
+                                message.chat.username))
         
         # If it's a new user, greet him/her
         else:
@@ -222,32 +221,34 @@ class Mainloop(object):
         '''
         Add the user to the join queue
         '''
-        if update.message.from_user.username in self.queue:
-            bot.sendMessage(chat_id=update.message.chat_id, 
+        message = get_message(update)
+        if message.chat.username in self.queue:
+            bot.sendMessage(chat_id=message.chat_id, 
                             text="Hello, {}. You are already in the queue.".format(
-                                update.message.from_user.username))
+                                message.chat.username))
         else:
-            bot.sendMessage(chat_id=update.message.chat_id, 
+            bot.sendMessage(chat_id=message.chat_id, 
                             text="The following users are in the queue:{}".format(
                                 '\n@'.join(self.queue)))
-        if update.message.from_user.username in self.admins:
-            self.chats[update.message.chat_id] = 'adm_join'
+        if message.chat.username in self.admins:
+            self.chats[message.chat_id] = 'adm_join'
             self.keyboard(bot, update)
 
 
     @Usercheck('any')
     def bye(self, bot, update):
-        bot.sendMessage(chat_id=update.message.chat_id, 
+        message = get_message(update)
+        bot.sendMessage(chat_id=message.chat_id, 
                         text="Goodbye {}!".format(
-                            update.message.from_user.first_name))
+                            message.from_user.first_name))
 
     @Usercheck('admin')
     def kill(self, bot, update):
         '''
         Stop the updater.
         '''
-        
-        bot.sendMessage(chat_id=update.message.chat_id, 
+        message = get_message(update)
+        bot.sendMessage(chat_id=message.chat_id, 
                         text=self.config['MESSAGES']['kill'])
         self.updater.stop() # is just not working to stop the script
     
@@ -258,7 +259,8 @@ class Mainloop(object):
         Return data about the current runs in progress.
         
         '''
-        bot.sendMessage(chat_id=update.message.chat_id, 
+        message = get_message(update)
+        bot.sendMessage(chat_id=message.chat_id, 
                         text="Let's pretend I'm reading the 'runs in progress' page...")
         
 
@@ -267,19 +269,19 @@ class Mainloop(object):
         '''
         Offer command options to the user.
         '''
-        
-        status = self.chats.get(update.message.chat_id, 'start')
+        message = get_message(update)
+        status = self.chats.get(message.chat_id, 'start')
         if status == 'start':
             keyboard = self.keyboards['start']
         
         keyboard.extend(self.keyboards['exit'])
-        if update.message.from_user.username in self.admins:
+        if message.chat.username in self.admins:
             keyboard.extend(self.keyboards['kill'])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        update.message.reply_text("Hello, {}. How can I help you?".format(
-                update.message.from_user.first_name), reply_markup=reply_markup)
+        message.reply_text("Hello, {}. How can I help you?".format(
+                message.from_user.first_name), reply_markup=reply_markup)
             
 
     def button(self, bot, update):
@@ -366,6 +368,15 @@ def toset(string):
     return a set of usernames from a comma-separated string.
     '''
     return set([item.strip() for item in string.split(',') if item.strip() != ''])
+
+
+def get_message(update):
+    if update.message:
+        return update.message
+    elif update.callback_query:
+        return update.callback_query.message
+    else:
+        return None
 
 if __name__ == '__main__':
     loop = Mainloop()
