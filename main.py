@@ -5,6 +5,7 @@ Created on Sat Oct 15 17:08:42 2016
 @author: Roberto
 """
 
+# pip install python-telegram-bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler
 import logging
@@ -240,7 +241,7 @@ class Mainloop(object):
         message = get_message(update)
         bot.sendMessage(chat_id=message.chat_id, 
                         text="Goodbye {}!".format(
-                            message.from_user.first_name))
+                            message.chat.first_name))
 
     @Usercheck('admin')
     def kill(self, bot, update):
@@ -272,16 +273,17 @@ class Mainloop(object):
         message = get_message(update)
         status = self.chats.get(message.chat_id, 'start')
         if status == 'start':
-            keyboard = self.keyboards['start']
+            keyboard = list(self.keyboards['start'])
         
         keyboard.extend(self.keyboards['exit'])
         if message.chat.username in self.admins:
             keyboard.extend(self.keyboards['kill'])
         
+        self.last_keyboard = keyboard
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         message.reply_text("Hello, {}. How can I help you?".format(
-                message.from_user.first_name), reply_markup=reply_markup)
+                message.chat.first_name), reply_markup=reply_markup)
             
 
     def button(self, bot, update):
