@@ -270,10 +270,11 @@ class Mainloop(object):
         '''
         Offer command options to the user.
         '''
+        keyboard = []
         message = get_message(update)
         status = self.chats.get(message.chat_id, 'start')
         if status == 'start':
-            keyboard = list(self.keyboards['start'])
+            keyboard.extend(self.keyboards['start'])
         
         keyboard.extend(self.keyboards['exit'])
         if message.chat.username in self.admins:
