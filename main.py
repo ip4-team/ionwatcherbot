@@ -95,9 +95,10 @@ class Mainloop(object):
     
     # Keyboard buttons, based on status
     keyboards = {'start': [[InlineKeyboardButton("Monitor runs", callback_data='M')],
-                           [InlineKeyboardButton("View queue", callback_data='Q')]],
+                           [InlineKeyboardButton("View queue", callback_data='Q')],
+                           [InlineKeyboardButton("Exit", callback_data='E')]],
                  'kill': [[InlineKeyboardButton("Kill the bot", callback_data='K')]],
-                 'exit': [[InlineKeyboardButton("Exit", callback_data='E')]]
+                 'back': [[InlineKeyboardButton("Back", callback_data='B')]]
                                  
                                  }
     
@@ -194,14 +195,14 @@ class Mainloop(object):
             
 
     # Bot comm methods, ordered by user level and then alphabetically
-    @Usercheck('any')
     def button(self, bot, update):
         query = update.callback_query
         self.this_query = query
         sender = {'M': self.monitor,
                   'Q': self.join,
                   'K': self.kill,
-                  'E': self.bye}
+                  'E': self.bye,
+                  'B': self.start}
                   
         if query.data in sender:
             sender[query.data](bot, update)
@@ -211,12 +212,38 @@ class Mainloop(object):
             this_run = [run for run in self.runs if run['id']==run_id][0]
             self.run_report(bot, update, this_run)
 
-    @Usercheck('any')
+
     def bye(self, bot, update):
         user = get_user(update)
         bot.sendMessage(chat_id=user.id, 
                         text="Goodbye {}! Type /start to interact again.".format(
                             user.first_name))
+
+
+    def keyboard(self, bot, update):
+        '''
+        Offer command options to the user.
+        '''
+        keyboard = []
+        user = get_user(update)
+        text = "Hello, {}. How can I help you?".format(user.first_name)
+        status = self.chats.get(user.id, 'start')
+        if status == 'start':
+            keyboard.extend(self.keyboards['start'])
+        
+        if status == 'monitor' and self.runs:
+            text = "Select a run for more information:"
+            keyboard.append([InlineKeyboardButton(str(run['id']),
+                    callback_data='Run_'+str(run['id'])) for run in self.runs])
+            
+        keyboard.extend(self.keyboards['back'])
+        
+        '''
+        if user.username in self.admins:
+            keyboard.extend(self.keyboards['kill'])
+        '''
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
 
     @Usercheck('any')
@@ -237,32 +264,6 @@ class Mainloop(object):
             self.chats[user.id] = 'adm_join'
             self.keyboard(bot, update)
 
-
-    @Usercheck('any')
-    def keyboard(self, bot, update):
-        '''
-        Offer command options to the user.
-        '''
-        keyboard = []
-        user = get_user(update)
-        text = "Hello, {}. How can I help you?".format(user.first_name)
-        status = self.chats.get(user.id, 'start')
-        if status == 'start':
-            keyboard.extend(self.keyboards['start'])
-        
-        if status == 'monitor' and self.runs:
-            text = "Select a run for more information:"
-            keyboard.append([InlineKeyboardButton(str(run['id']),
-                    callback_data='Run_'+str(run['id'])) for run in self.runs])
-            
-        keyboard.extend(self.keyboards['exit'])
-        
-        '''
-        if user.username in self.admins:
-            keyboard.extend(self.keyboards['kill'])
-        '''
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
     @Usercheck('any')
     def start(self, bot, update):
