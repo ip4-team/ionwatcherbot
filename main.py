@@ -50,7 +50,11 @@ class Usercheck(object):
             else:
                 logging.warning("couldn't establish user. update is:" + str(update))
                 return None
-            if self.userlevel == 'any':
+            negate_text = instance.config['MESSAGES']['negate']
+            if username in instance.blocked:
+                auth = [] # no access
+                negate_text = 'You have been blocked and cannot issue any command.'
+            elif self.userlevel == 'any':
                 auth = True
             elif self.userlevel == 'user':
                 auth = instance.users.union(instance.admins)
@@ -64,7 +68,7 @@ class Usercheck(object):
                 logging.info("Blocked {0} command from: {1}".format( 
                         text, username))
                 bot.sendMessage(chat_id=user.id, 
-                        text=instance.config['MESSAGES']['negate'])
+                        text=negate_text)
                 return None
         return wrapper
 
@@ -179,15 +183,17 @@ class Mainloop(object):
                 self.blocked = toset(self.config['COMM']['blocked'])
                 self.server = format_server_address(self.config['NETWORK']['server'])
                 return True
-        
+    
+    
+    def clean_config_data(self, configloc, userset):
+        self.config['COMM'][configloc] = \
+                [re.sub('[\{\}\']', '', str(userset)), ''][userset == set()]
+    
     def save_config(self):
-        self.config['COMM']['admins'] = re.sub('[\{\}\']', '', str(self.admins))
-        self.config['COMM']['users'] = \
-                [re.sub('[\{\}\']', '', str(self.users)), ''][self.users == set()]
-        self.config['COMM']['queue'] = \
-                [re.sub('[\{\}\']', '', str(self.queue)), ''][self.queue == set()]
-        self.config['COMM']['blocked'] = \
-                [re.sub('[\{\}\']', '', str(self.blocked)), ''][self.config == set()]
+        self.clean_config_data('admins', self.admins)
+        self.clean_config_data('users', self.users)
+        self.clean_config_data('queue', self.queue)
+        self.clean_config_data('blocked', self.blocked)
        
         with open('IonWatcher.cfg', 'w') as f:
             f.write('# Configurations file for IonWatcher Bot\n\n')
@@ -240,10 +246,16 @@ class Mainloop(object):
         '''
         keyboard = []
         user = get_user(update)
-        text = "Hello, {}. How can I help you?".format(user.first_name)
+        text = "How can I help you, {}?".format(user.first_name)
         status = self.chats.get(user.id, 'start')
         if status == 'start':
-            keyboard.extend(self.keyboards['start'])
+            if user.username in self.admins.union(self.users):
+                keyboard.extend(self.keyboards['start'])
+            elif user.username in self.queue.union(self.blocked):
+                return
+            else:
+                keyboard.append([InlineKeyboardButton("Join queue",
+                                                          callback_data='Q')])
         
         if status == 'monitor' and self.runs:
             text = "Select a run for more information:"
@@ -261,8 +273,8 @@ class Mainloop(object):
             elif user.username in self.users:
                 text = "End of queue."
         
-        keyboard.extend(self.keyboards['back'])
-        
+        if status != 'start':
+            keyboard.extend(self.keyboards['back'])
         reply_markup = InlineKeyboardMarkup(keyboard)
         bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
@@ -270,13 +282,19 @@ class Mainloop(object):
     @Usercheck('any')
     def join(self, bot, update):
         '''
-        Add the user to the join queue
+        Add the user to the join queue, or view queue if admin
         '''
         user = get_user(update)
         if user.username in self.queue:
             bot.sendMessage(chat_id=user.id, 
                     text="Hello, {}. You are already in the queue.".format(user.username))
             self.chats[user.id] = 'start'
+        elif user.username not in self.admins.union(self.users):
+            self.queue.add(user.username)
+            self.save_config()
+            bot.sendMessage(chat_id=user.id, 
+                    text="You have been added to the queue, {}.".format(user.username))
+            
         else:
             if not self.queue:
                 bot.sendMessage(chat_id=user.id, text="There are no users in the queue.")
@@ -392,17 +410,23 @@ class Mainloop(object):
 
     @Usercheck('admin')
     def approve(self, bot, update, username):
+        user = get_user(update)
         self.users.add(username)
         self.queue.remove(username)
         self.save_config()
+        bot.sendMessage(chat_id=user.id, 
+                text="User {} has been approved.".format(username))
         self.keyboard(bot, update)
     
 
     @Usercheck('admin')
     def block(self, bot, update, username):
+        user = get_user(update)
         self.blocked.add(username)
         self.queue.remove(username)
         self.save_config()
+        bot.sendMessage(chat_id=user.id, 
+                text="User {} has been blocked.".format(username))
         self.keyboard(bot, update)
 
 
