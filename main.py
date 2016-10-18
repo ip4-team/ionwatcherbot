@@ -20,6 +20,7 @@ import bs4
 import json
 import re
 import shutil
+import os
 
 
 # Decorators
@@ -438,7 +439,8 @@ class Mainloop(object):
         user = get_user(update)
         bot.sendMessage(chat_id=user.id, 
                         text=self.config['MESSAGES']['kill'])
-        self.updater.stop() # is just not working to stop the script
+        #self.updater.stop() # is just not working to stop the script
+        os._exit(0)
     
     # Scraping
     def read_monitor(self):
@@ -452,7 +454,7 @@ class Mainloop(object):
                                      auth=self.auth, 
                                      verify=False)
         soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
-        with open('/MyTemporarilySavedFile/monitor/index.html', 'r') as f:
+        with open('testing_data/monitor/index.html', 'r') as f:
             recorded_text = f.read()
             soup = bs4.BeautifulSoup(recorded_text, 'lxml')
         elems=soup.select('script')
