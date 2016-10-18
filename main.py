@@ -82,7 +82,8 @@ class Mainloop(object):
             ('COMM', OrderedDict([
                     ('admins', 'Administrators'),
                     ('users', 'Trusted users'),
-                    ('queue', 'Join queue')])),
+                    ('queue', 'Join queue'),
+                    ('blocked', 'Blocked users')])),
             ('MESSAGES', OrderedDict([
                     ('start', 'Initial greeting, /start command is received by an unknown user'),
                     ('kill', '/kill command is received by an admin'),
@@ -90,7 +91,7 @@ class Mainloop(object):
             ])
     # Fields listed under `optionals` can be left blank in the config file;
     # 'users' specifically can be blank, because 'admins' cannot.
-    optionals = ['server', 'users', 'queue']
+    optionals = ['server', 'users', 'queue', 'blocked']
 
     
     # Keyboard buttons, based on status
@@ -106,6 +107,7 @@ class Mainloop(object):
         self.admins = None
         self.users = None
         self.queue = None
+        self.blocked = None
         self.runs = []
         
         # chats are stored in the form: {id: 'status'}, where 'status' can be:
@@ -174,15 +176,18 @@ class Mainloop(object):
                 self.admins = toset(self.config['COMM']['admins'])
                 self.users = toset(self.config['COMM']['users'])
                 self.queue = toset(self.config['COMM']['queue'])
+                self.blocked = toset(self.config['COMM']['blocked'])
                 self.server = format_server_address(self.config['NETWORK']['server'])
                 return True
         
     def save_config(self):
         self.config['COMM']['admins'] = re.sub('[\{\}\']', '', str(self.admins))
-        if self.users:
-            self.config['COMM']['users'] = re.sub('[\{\}\']', '', str(self.users))
-        if self.queue:
-            self.config['COMM']['queue'] = re.sub('[\{\}\']', '', str(self.queue))
+        self.config['COMM']['users'] = \
+                [re.sub('[\{\}\']', '', str(self.users)), ''][self.users == set()]
+        self.config['COMM']['queue'] = \
+                [re.sub('[\{\}\']', '', str(self.queue)), ''][self.queue == set()]
+        self.config['COMM']['blocked'] = \
+                [re.sub('[\{\}\']', '', str(self.blocked)), ''][self.config == set()]
        
         with open('IonWatcher.cfg', 'w') as f:
             f.write('# Configurations file for IonWatcher Bot\n\n')
@@ -195,6 +200,7 @@ class Mainloop(object):
             
 
     # Bot comm methods, ordered by user level and then alphabetically
+    # The first are eneral methods; no clearance
     def button(self, bot, update):
         query = update.callback_query
         self.this_query = query
@@ -211,6 +217,14 @@ class Mainloop(object):
             run_id = int(query.data[4:])
             this_run = [run for run in self.runs if run['id']==run_id][0]
             self.run_report(bot, update, this_run)
+        
+        elif query.data.startswith("App_"):
+                app_username = query.data[4:]
+                self.approve(bot, update, app_username)
+        
+        elif query.data.startswith("Blo_"):
+                block_username = query.data[4:]
+                self.block(bot, update, block_username)
 
 
     def bye(self, bot, update):
@@ -235,13 +249,20 @@ class Mainloop(object):
             text = "Select a run for more information:"
             keyboard.append([InlineKeyboardButton(str(run['id']),
                     callback_data='Run_'+str(run['id'])) for run in self.runs])
-            
+        
+        if status == 'join':
+            if user.username in self.admins:
+                text = "Choose any action:"
+                for queued in self.queue:
+                    keyboard.append([InlineKeyboardButton("Approve "+queued, 
+                                                          callback_data='App_'+queued),
+                                     InlineKeyboardButton("Block", 
+                                                          callback_data='Blo_'+queued)])
+            elif user.username in self.users:
+                text = "End of queue."
+        
         keyboard.extend(self.keyboards['back'])
         
-        '''
-        if user.username in self.admins:
-            keyboard.extend(self.keyboards['kill'])
-        '''
         reply_markup = InlineKeyboardMarkup(keyboard)
         bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
@@ -254,15 +275,18 @@ class Mainloop(object):
         user = get_user(update)
         if user.username in self.queue:
             bot.sendMessage(chat_id=user.id, 
-                            text="Hello, {}. You are already in the queue.".format(
-                                user.username))
+                    text="Hello, {}. You are already in the queue.".format(user.username))
+            self.chats[user.id] = 'start'
         else:
-            bot.sendMessage(chat_id=user.id, 
-                            text="The following users are in the queue:{}".format(
-                                '\n@'.join(self.queue)))
-        if user.username in self.admins:
-            self.chats[user.id] = 'adm_join'
-            self.keyboard(bot, update)
+            if not self.queue:
+                bot.sendMessage(chat_id=user.id, text="There are no users in the queue.")
+                self.chats[user.id] = 'start'
+            else:
+                bot.sendMessage(chat_id=user.id, 
+                        text="The following users are in the queue:\n" + \
+                        ''.join(['@{}\n'.format(name) for name in self.queue]))
+                self.chats[user.id] = 'join'
+        self.keyboard(bot, update)
 
 
     @Usercheck('any')
@@ -272,10 +296,9 @@ class Mainloop(object):
         
         '''
         user = get_user(update)
-        # If the message is from a truster user or admin, start keyboard
+        # If the message is from a truster user or admin, no special handling
         if user.username in self.admins.union(self.users):
-            self.chats[user.id] = 'start'
-            self.keyboard(bot, update)
+            pass
         
         # If the user is still in the queue, inform him/her
         elif user.username in self.queue:
@@ -289,6 +312,8 @@ class Mainloop(object):
         else:
             bot.sendMessage(chat_id=user.id, 
                             text=self.config['MESSAGES']['start'])
+        self.chats[user.id] = 'start'
+        self.keyboard(bot, update)
     
 
     @Usercheck('user')
@@ -362,6 +387,22 @@ class Mainloop(object):
                                       run_status))        
         bot.sendMessage(chat_id=user.id, text=string)
         bot.sendPhoto(chat_id=user.id, photo=open(self.get_image(run_dir_id), 'rb'))
+        self.keyboard(bot, update)
+
+
+    @Usercheck('admin')
+    def approve(self, bot, update, username):
+        self.users.add(username)
+        self.queue.remove(username)
+        self.save_config()
+        self.keyboard(bot, update)
+    
+
+    @Usercheck('admin')
+    def block(self, bot, update, username):
+        self.blocked.add(username)
+        self.queue.remove(username)
+        self.save_config()
         self.keyboard(bot, update)
 
 

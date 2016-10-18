@@ -17,6 +17,8 @@ admins = MyTelegramNickname
 users = 
 # Join queue
 queue = 
+# Blocked users
+blocked = 
 
 [MESSAGES]
 
