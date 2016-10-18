@@ -7,3 +7,6 @@ __pycache__
 
 # Skip logfile
 *.log
+
+# Skip images
+images/*.png
