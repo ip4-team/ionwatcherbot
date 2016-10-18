@@ -11,12 +11,14 @@ Created on Sat Oct 15 17:08:42 2016
 # pip install python-telegram-bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
+# pip install beautifulsoup4
+# In case "Couldn't find a tree builder": pip install lxml
+import bs4
 import logging
 import configparser
 import getpass
 import requests
 from collections import OrderedDict
-import bs4
 import json
 import re
 import shutil
