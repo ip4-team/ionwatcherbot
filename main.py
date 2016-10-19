@@ -12,7 +12,10 @@ Created on Sat Oct 15 17:08:42 2016
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 # pip install beautifulsoup4
-# In case "Couldn't find a tree builder": pip install lxml
+#    In case "Couldn't find a tree builder":
+#        pip install lxml
+#    or:
+#        sudo apt install python-lxml
 import bs4
 import logging
 import configparser
@@ -239,10 +242,6 @@ class Mainloop(object):
                 block_username = query.data[4:]
                 self.block(bot, update, block_username)
         
-        elif query.data.startswith("Pdf_"):
-                report_id = query.data[4:]
-                self.pdf(bot, update, report_id)
-        
 
     def keyboard(self, bot, update):
         '''
@@ -290,13 +289,11 @@ class Mainloop(object):
         run_dir_id = run['id']
         report_pdf = self.get_pdf(run_dir_id)
         if report_pdf:
-            keyboard = [InlineKeyboardButton('{}.pdf'.format(run_dir_id),
-                                             callback_data='Pdf_'.format(run_dir_id))]
-            text = 'Download run report (pdf):'
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
+            self.pdf(bot, update, run_dir_id)
         else:
             bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
+        self.chats[user.id] = 'monitor'
+        self.keyboard(bot, update)
             
 
 
@@ -354,7 +351,9 @@ class Mainloop(object):
     # file retrieving
     def get_image(self, run_id, filename):
         loc = 'report/{}/metal/{}'.format(run_id, filename)
-        dest = 'download/{}_{}'.format(run_id, filename)
+        # Removing dirs from filename
+        destname = filename[filename.rfind('/')+1:]
+        dest = 'download/{}_{}'.format(run_id, destname)
         return self.get_file(loc, dest)
         
         
@@ -362,7 +361,12 @@ class Mainloop(object):
         loc = 'report/latex/{}.pdf'.format(run_id)
         dest = 'download/{}.pdf'.format(run_id)
         return self.get_file(loc, dest)
-        
+
+
+    def pdf(self, bot, update, report_id):
+        user = get_user(update)
+        with open('download/{}.pdf'.format(report_id), 'rb') as document:
+            bot.sendDocument(chat_id=user.id, document=document)        
         
     def get_file(self, loc, dest):
         try:
@@ -492,13 +496,6 @@ class Mainloop(object):
 
 
     @Usercheck('user')
-    def pdf(self, bot, update, report_id):
-        user = get_user(update)
-        bot.sendDocument(chat_id=user.id, document='download/{}.pdf'.format(report_id))
-        self.keyboard(bot, update)
-        
-
-    @Usercheck('user')
     def run_report(self, bot, update, run):
         user = get_user(update)
         # TODO see flows
@@ -541,7 +538,7 @@ class Mainloop(object):
                 bot.sendMessage(chat_id=user.id,
                                 text="[no {} image]".format(image_data[1]))
         self.report_link(bot, update, run)
-        self.keyboard(bot, update)
+
 
 
     @Usercheck('admin')
