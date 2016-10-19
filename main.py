@@ -444,18 +444,19 @@ class Mainloop(object):
         
         '''
         user = get_user(update)
-        self.runs, flag = self.read_monitor()
-
+        runs, flag = self.read_monitor()
         
         if flag == 'no_connection':
             bot.sendMessage(chat_id=user.id,
                             text="I'm sorry {}, I couldn't connect to the server.".format(
                             user.first_name))
         
-        elif flag == 'no_data' or self.runs is None:
+        elif flag == 'no_data':
             bot.sendMessage(chat_id=user.id,
                             text="I'm sorry {}, I couldn't retrieve any data.".format(
                             user.first_name))
+            self.chats[user.id] = 'start'
+            self.keyboard(bot, update)
             return
         elif flag == 'multiple':
             bot.sendMessage(chat_id=user.id, 
@@ -465,8 +466,18 @@ class Mainloop(object):
         elif flag == 'ok':
             bot.sendMessage(chat_id=user.id, 
                             text="I have found {0} runs:".format(
-                            len(self.runs)))
+                            len(runs)))
+            if (not runs) and self.runs:
+                bot.sendMessage(chat_id=user.id, 
+                        text="However, I have {0} runs in menory:".format(
+                        len(self.runs)))
+        else:
+            bot.sendMessage(chat_id=user.id, 
+                            text="I'm sorry, something went unexpectedly wrong.")
 
+        if runs:
+            self.runs = runs
+        if self.runs:
             self.runs = sorted(self.runs, key = lambda x: int(x['id']))
             for run in self.runs:
                 # TODO see flows
@@ -478,9 +489,7 @@ class Mainloop(object):
                                               run_status))
                 bot.sendMessage(chat_id=user.id, text=string)
             self.chats[user.id] = 'monitor'
-        else:
-            bot.sendMessage(chat_id=user.id, 
-                            text="I'm sorry, something went unexpectedly wrong.")
+
         self.keyboard(bot, update)
 
 
