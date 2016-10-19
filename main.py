@@ -212,8 +212,8 @@ class Mainloop(object):
                 f.write('\n')
             
 
-    # Bot comm methods, ordered by user level and then alphabetically
-    # The first are eneral methods; no clearance
+    # Bot methods, ordered by user level and then alphabetically
+    # The first are general methods; no clearance
     def button(self, bot, update):
         query = update.callback_query
         self.this_query = query
@@ -238,7 +238,11 @@ class Mainloop(object):
         elif query.data.startswith("Blo_"):
                 block_username = query.data[4:]
                 self.block(bot, update, block_username)
-
+        
+        elif query.data.startswith("Pdf_"):
+                report_id = query.data[4:]
+                self.pdf(bot, update, report_id)
+        
 
     def keyboard(self, bot, update):
         '''
@@ -273,18 +277,113 @@ class Mainloop(object):
             elif user.username in self.users:
                 text = "End of queue."
         
-        if status != 'start':
+        if status not in ['start', 'bye']:
             keyboard.extend(self.keyboards['back'])
+        
+        if status == 'bye':
+            keyboard = [InlineKeyboardButton("Start", callback_data='B')]
+            
         reply_markup = InlineKeyboardMarkup(keyboard)
         bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
 
+    def report_link(self, bot, update, run):
+        user = get_user(update)
+        run_dir_id = run['id']
+        report_pdf = self.get_pdf(run_dir_id)
+        if report_pdf:
+            keyboard = [InlineKeyboardButton('{}.pdf'.format(run_dir_id),
+                                             callback_data='Pdf_'.format(run_dir_id))]
+            text = 'Download run report (pdf):'
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
+        else:
+            bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
+            
+
+
+    # Scraping
+    def read_monitor(self):
+        '''
+        Scrape data about current runs from the server and return it.
+        
+        '''
+        
+        flag = ''
+        
+        #'''
+        try:
+            monitor_table = requests.get(self.server+'monitor/#full',
+                                         auth=self.auth, 
+                                         verify=False)
+        except:
+            logging.warning("Server unreachable or bad auth.")
+            flag = 'no_connection'
+            return [None, flag]
+        try:
+            soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
+            elems=soup.select('script')
+            data = [elem for elem in elems if 'var initial_runs' in elem.text]
+        except:
+            data = None
+        #'''
+        
+        '''# Testing
+        with open('testing_data/monitor/index.html', 'r') as f:
+            recorded_text = f.read()
+            soup = bs4.BeautifulSoup(recorded_text, 'lxml')
+        elems=soup.select('script')
+        data = [elem for elem in elems if 'var initial_runs' in elem.text]
+        '''# / Testing
+
+        if not data:
+            logging.warning("Couldn't fetch data for runs in progress. Dumping soup:")
+            logging.warning(soup.text)
+            flag = 'no_data'
+            return [None, flag]
+        elif len(data) > 1:
+            logging.warning("Multiple entries for runs in progress. Dumping data:")
+            logging.warning(str(data))
+            flag = 'multiple'
+        else:
+            flag = 'ok'
+        good = data[0].text[data[0].text.index('{'):data[0].text.rfind('}')+1]
+        monitor_json = json.loads(good)
+        runs = monitor_json['objects']
+        return [runs, flag]
+
+
+    # file retrieving
+    def get_image(self, run_id, filename):
+        loc = 'report/{}/metal/{}'.format(run_id, filename)
+        dest = 'download/{}_{}'.format(run_id, filename)
+        return self.get_file(loc, dest)
+        
+        
+    def get_pdf(self, run_id):
+        loc = 'report/latex/{}.pdf'.format(run_id)
+        dest = 'download/{}.pdf'.format(run_id)
+        return self.get_file(loc, dest)
+        
+        
+    def get_file(self, loc, dest):
+        try:
+            response = requests.get(self.server+loc, auth=self.auth,
+                                    verify=False, stream=True)
+            with open(dest, 'wb') as out_file:
+                shutil.copyfileobj(response.raw, out_file)
+            return dest
+        except:
+            return None
+
+    # User actions
     @Usercheck('any')
     def bye(self, bot, update):
         user = get_user(update)
+        self.chats[user.id] = 'bye'
         bot.sendMessage(chat_id=user.id, 
-                        text="Goodbye {}! Type /start to interact again.".format(
-                            user.first_name))
+                        text="Goodbye, {}. Type /start to restart.".format(user.first_name))
+        self.keyboard(bot, update)
 
     @Usercheck('any')
     def join(self, bot, update):
@@ -389,19 +488,11 @@ class Mainloop(object):
 
 
     @Usercheck('user')
-    def report_link(self, bot, update, run):
+    def pdf(self, bot, update, report_id):
         user = get_user(update)
-        run_dir_id = run['id']
-        report_pdf = self.get_pdf(run_dir_id)
-        if report_pdf:
-            keyboard = [InlineKeyboardButton('{}.pdf'.format(run_dir_id),
-                                             callback_data='Pdf_'.format(run_dir_id))]
-            text = 'Download run report (pdf):'
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
-        else:
-            bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
-
+        bot.sendDocument(chat_id=user.id, document='download/{}.pdf'.format(report_id))
+        self.keyboard(bot, update)
+        
 
     @Usercheck('user')
     def run_report(self, bot, update, run):
@@ -437,8 +528,7 @@ class Mainloop(object):
                                       mean_length,
                                       run_status))        
         bot.sendMessage(chat_id=user.id, text=string)
-        
-        
+
         for image_data in self.images:
             image = self.get_image(run_dir_id, image_data[0])
             if image:
@@ -448,6 +538,7 @@ class Mainloop(object):
                                 text="[no {} image]".format(image_data[1]))
         self.report_link(bot, update, run)
         self.keyboard(bot, update)
+
 
     @Usercheck('admin')
     def approve(self, bot, update, username):
@@ -482,80 +573,6 @@ class Mainloop(object):
         #self.updater.stop() # is just not working to stop the script
         os._exit(0)
     
-    # Scraping
-    def read_monitor(self):
-        '''
-        Scrape data about current runs from the server and return it.
-        
-        '''
-        
-        flag = ''
-        
-        #'''
-        try:
-            monitor_table = requests.get(self.server+'monitor/#full',
-                                         auth=self.auth, 
-                                         verify=False)
-        except:
-            logging.warning("Server unreachable or bad auth.")
-            flag = 'no_connection'
-            return [None, flag]
-        try:
-            soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
-            elems=soup.select('script')
-            data = [elem for elem in elems if 'var initial_runs' in elem.text]
-        except:
-            data = None
-        #'''
-        
-        '''# Testing
-        with open('testing_data/monitor/index.html', 'r') as f:
-            recorded_text = f.read()
-            soup = bs4.BeautifulSoup(recorded_text, 'lxml')
-        elems=soup.select('script')
-        data = [elem for elem in elems if 'var initial_runs' in elem.text]
-        '''# / Testing
-
-        if not data:
-            logging.warning("Couldn't fetch data for runs in progress. Dumping soup:")
-            logging.warning(soup.text)
-            flag = 'no_data'
-            return [None, flag]
-        elif len(data) > 1:
-            logging.warning("Multiple entries for runs in progress. Dumping data:")
-            logging.warning(str(data))
-            flag = 'multiple'
-        else:
-            flag = 'ok'
-        good = data[0].text[data[0].text.index('{'):data[0].text.rfind('}')+1]
-        monitor_json = json.loads(good)
-        runs = monitor_json['objects']
-        return [runs, flag]
-
-
-    def get_image(self, run_id, filename):
-        loc = 'report/{}/metal/{}'.format(run_id, filename)
-        dest = 'download/{}_{}'.format(run_id, filename)
-        return self.get_file(loc, dest)
-        
-        
-    def get_pdf(self, run_id):
-        loc = 'report/latex/{}.pdf'.format(run_id)
-        dest = 'download/{}.pdf'.format(run_id)
-        return self.get_file(loc, dest)
-        
-        
-    def get_file(self, loc, dest):
-        try:
-            response = requests.get(self.server+loc, auth=self.auth,
-                                    verify=False, stream=True)
-            with open(dest, 'wb') as out_file:
-                shutil.copyfileobj(response.raw, out_file)
-            return dest
-        except:
-            return None
-        
-
 
 # Helper functions
 def notblank(info, secret = False):
