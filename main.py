@@ -120,7 +120,7 @@ class Mainloop(object):
         self.users = None
         self.queue = None
         self.blocked = None
-        self.runs = []
+        self.runs = dict()
         
         # chats are stored in the form: {id: 'status'}, where 'status' can be:
         # 'start', 'adm_join', 'monitor'
@@ -228,7 +228,7 @@ class Mainloop(object):
             
         elif query.data.startswith("Run_"):
             run_id = int(query.data[4:])
-            this_run = [run for run in self.runs if run['id']==run_id][0]
+            this_run = self.runs.get(run_id, None)
             self.run_report(bot, update, this_run)
         
         elif query.data.startswith("App_"):
@@ -263,8 +263,8 @@ class Mainloop(object):
         
         if status == 'monitor' and self.runs:
             text = "Select a run for more information:"
-            keyboard.append([InlineKeyboardButton(str(run['id']),
-                    callback_data='Run_'+str(run['id'])) for run in self.runs])
+            keyboard.append([InlineKeyboardButton(str(run),
+                    callback_data='Run_'+str(run)) for run in self.runs])
         
         if status == 'join':
             if user.username in self.admins:
@@ -347,7 +347,7 @@ class Mainloop(object):
             flag = 'ok'
         good = data[0].text[data[0].text.index('{'):data[0].text.rfind('}')+1]
         monitor_json = json.loads(good)
-        runs = monitor_json['objects']
+        runs = {obj['id']: obj for obj in monitor_json['objects'] if obj}
         return [runs, flag]
 
 
@@ -476,13 +476,11 @@ class Mainloop(object):
                             text="I'm sorry, something went unexpectedly wrong.")
 
         if runs:
-            self.runs = runs
+            self.runs.update(runs)
         if self.runs:
-            self.runs = sorted(self.runs, key = lambda x: int(x['id']))
-            for run in self.runs:
+            for run_dir_id, run in sorted(self.runs.items()):
                 # TODO see flows
                 runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
-                run_dir_id = run['id']
                 run_status = run['status']
                 string = ('[{}]\n{}\n'        
                           'Status: {}'.format(run_dir_id, runname,         
