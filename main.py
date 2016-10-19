@@ -110,6 +110,11 @@ class Mainloop(object):
                                  
                                  }
     
+    images = [['Bead_density_200.png', 'bead density'],
+              ['basecaller_results/wells_beadogram.png', 'bead quality data'],
+              ['basecaller_results/readLenHisto2.png', 'read size distribution'],
+              ['iontrace_Library.png', 'key signal data']]
+    
     def __init__(self):
         self.admins = None
         self.users = None
@@ -147,7 +152,6 @@ class Mainloop(object):
         dispatcher.add_handler(CommandHandler('monitor', self.monitor))
         dispatcher.add_handler(CommandHandler('join', self.join))
         dispatcher.add_handler(CommandHandler('bye', self.bye))
-        dispatcher.add_handler(CommandHandler('keyboard', self.keyboard))
         dispatcher.add_handler(CallbackQueryHandler(self.button))
         
         print('Listening...')
@@ -236,13 +240,6 @@ class Mainloop(object):
                 self.block(bot, update, block_username)
 
 
-    def bye(self, bot, update):
-        user = get_user(update)
-        bot.sendMessage(chat_id=user.id, 
-                        text="Goodbye {}! Type /start to interact again.".format(
-                            user.first_name))
-
-
     def keyboard(self, bot, update):
         '''
         Offer command options to the user.
@@ -281,6 +278,13 @@ class Mainloop(object):
         reply_markup = InlineKeyboardMarkup(keyboard)
         bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
+
+    @Usercheck('any')
+    def bye(self, bot, update):
+        user = get_user(update)
+        bot.sendMessage(chat_id=user.id, 
+                        text="Goodbye {}! Type /start to interact again.".format(
+                            user.first_name))
 
     @Usercheck('any')
     def join(self, bot, update):
@@ -345,8 +349,14 @@ class Mainloop(object):
         '''
         user = get_user(update)
         self.runs, flag = self.read_monitor()
-        self.runs = sorted(self.runs, key = lambda x: int(x['id']))
-        if flag == 'no_data':
+
+        
+        if flag == 'no_connection':
+            bot.sendMessage(chat_id=user.id,
+                            text="I'm sorry {}, I couldn't connect to the server.".format(
+                            user.first_name))
+        
+        elif flag == 'no_data' or self.runs is None:
             bot.sendMessage(chat_id=user.id,
                             text="I'm sorry {}, I couldn't retrieve any data.".format(
                             user.first_name))
@@ -356,22 +366,42 @@ class Mainloop(object):
                             text="{}, I found multiple data, which was unexpected."
                             "However, I hope this is the list of runs.".format(
                             user.first_name))
-        else:
+        elif flag == 'ok':
             bot.sendMessage(chat_id=user.id, 
                             text="I have found {0} runs:".format(
                             len(self.runs)))
-        for run in self.runs:
-            # TODO see flows
-            runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
-            run_dir_id = run['id']
-            run_status = run['status']
-            string = ('[{}]\n{}\n'        
-                      'Status: {}'.format(run_dir_id, runname,         
-                                          run_status))
-            bot.sendMessage(chat_id=user.id, text=string)
-        self.chats[user.id] = 'monitor'
+
+            self.runs = sorted(self.runs, key = lambda x: int(x['id']))
+            for run in self.runs:
+                # TODO see flows
+                runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
+                run_dir_id = run['id']
+                run_status = run['status']
+                string = ('[{}]\n{}\n'        
+                          'Status: {}'.format(run_dir_id, runname,         
+                                              run_status))
+                bot.sendMessage(chat_id=user.id, text=string)
+            self.chats[user.id] = 'monitor'
+        else:
+            bot.sendMessage(chat_id=user.id, 
+                            text="I'm sorry, something went unexpectedly wrong.")
         self.keyboard(bot, update)
-                
+
+
+    @Usercheck('user')
+    def report_link(self, bot, update, run):
+        user = get_user(update)
+        run_dir_id = run['id']
+        report_pdf = self.get_pdf(run_dir_id)
+        if report_pdf:
+            keyboard = [InlineKeyboardButton('{}.pdf'.format(run_dir_id),
+                                             callback_data='Pdf_'.format(run_dir_id))]
+            text = 'Download run report (pdf):'
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
+        else:
+            bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
+
 
     @Usercheck('user')
     def run_report(self, bot, update, run):
@@ -407,9 +437,17 @@ class Mainloop(object):
                                       mean_length,
                                       run_status))        
         bot.sendMessage(chat_id=user.id, text=string)
-        bot.sendPhoto(chat_id=user.id, photo=open(self.get_image(run_dir_id), 'rb'))
+        
+        
+        for image_data in self.images:
+            image = self.get_image(run_dir_id, image_data[0])
+            if image:
+                bot.sendPhoto(chat_id=user.id, photo=open(image, 'rb'))
+            else:
+                bot.sendMessage(chat_id=user.id,
+                                text="[no {} image]".format(image_data[1]))
+        self.report_link(bot, update, run)
         self.keyboard(bot, update)
-
 
     @Usercheck('admin')
     def approve(self, bot, update, username):
@@ -452,15 +490,32 @@ class Mainloop(object):
         '''
         
         flag = ''
-        monitor_table = requests.get(self.server+'monitor/#full',
-                                     auth=self.auth, 
-                                     verify=False)
-        soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
+        
+        #'''
+        try:
+            monitor_table = requests.get(self.server+'monitor/#full',
+                                         auth=self.auth, 
+                                         verify=False)
+        except:
+            logging.warning("Server unreachable or bad auth.")
+            flag = 'no_connection'
+            return [None, flag]
+        try:
+            soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
+            elems=soup.select('script')
+            data = [elem for elem in elems if 'var initial_runs' in elem.text]
+        except:
+            data = None
+        #'''
+        
+        '''# Testing
         with open('testing_data/monitor/index.html', 'r') as f:
             recorded_text = f.read()
             soup = bs4.BeautifulSoup(recorded_text, 'lxml')
         elems=soup.select('script')
         data = [elem for elem in elems if 'var initial_runs' in elem.text]
+        '''# / Testing
+
         if not data:
             logging.warning("Couldn't fetch data for runs in progress. Dumping soup:")
             logging.warning(soup.text)
@@ -478,10 +533,19 @@ class Mainloop(object):
         return [runs, flag]
 
 
-    def get_image(self, run_id):
-        filename = 'Bead_density_200.png'
+    def get_image(self, run_id, filename):
         loc = 'report/{}/metal/{}'.format(run_id, filename)
-        dest = 'images/{}_{}'.format(run_id, filename)
+        dest = 'download/{}_{}'.format(run_id, filename)
+        return self.get_file(loc, dest)
+        
+        
+    def get_pdf(self, run_id):
+        loc = 'report/latex/{}.pdf'.format(run_id)
+        dest = 'download/{}.pdf'.format(run_id)
+        return self.get_file(loc, dest)
+        
+        
+    def get_file(self, loc, dest):
         try:
             response = requests.get(self.server+loc, auth=self.auth,
                                     verify=False, stream=True)

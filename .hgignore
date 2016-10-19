@@ -11,5 +11,6 @@ testing_data
 # Skip logfile
 *.log
 
-# Skip images
-images/*.png
+# Skip downloads
+download/*.png
+download/*.pdf
