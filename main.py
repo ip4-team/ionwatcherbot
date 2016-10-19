@@ -277,12 +277,10 @@ class Mainloop(object):
             elif user.username in self.users:
                 text = "End of queue."
         
-        if status not in ['start', 'bye']:
+        if status != 'start':
             keyboard.extend(self.keyboards['back'])
         
-        if status == 'bye':
-            keyboard = [InlineKeyboardButton("Start", callback_data='B')]
-            
+           
         reply_markup = InlineKeyboardMarkup(keyboard)
         bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
@@ -383,7 +381,6 @@ class Mainloop(object):
         self.chats[user.id] = 'bye'
         bot.sendMessage(chat_id=user.id, 
                         text="Goodbye, {}. Type /start to restart.".format(user.first_name))
-        self.keyboard(bot, update)
 
     @Usercheck('any')
     def join(self, bot, update):
