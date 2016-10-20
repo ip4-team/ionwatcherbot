@@ -8,24 +8,25 @@ Created on Sat Oct 15 17:08:42 2016
 # TODO add "clean" to clen files and logs
 # TODO user administration
 
+
+import os, logging, re, json, requests
+from collections import OrderedDict
+from configparser import ConfigParser
+from getpass import getpass
+from shutil import copyfileobj
+
+## To install bs4:
+# pip install beautifulsoup4
+## In case "Couldn't find a tree builder":
+# pip install lxml
+##  or possibly:
+# sudo apt install python-lxml
+from bs4 import BeautifulSoup
+
+## To install the telegram module:
 # pip install python-telegram-bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
-# pip install beautifulsoup4
-#    In case "Couldn't find a tree builder":
-#        pip install lxml
-#    or:
-#        sudo apt install python-lxml
-import bs4
-import logging
-import configparser
-import getpass
-import requests
-from collections import OrderedDict
-import json
-import re
-import shutil
-import os
 
 
 # Decorators
@@ -164,7 +165,7 @@ class Mainloop(object):
     # Config loading and saving
     def get_config(self):
         print('Reading configurations file...')
-        config = configparser.ConfigParser()
+        config = ConfigParser()
         config.read('IonWatcher.cfg')
         
         # Checking data
@@ -316,7 +317,7 @@ class Mainloop(object):
             flag = 'no_connection'
             return [None, flag]
         try:
-            soup = bs4.BeautifulSoup(monitor_table.text, 'lxml')
+            soup = BeautifulSoup(monitor_table.text, 'lxml')
             elems=soup.select('script')
             data = [elem for elem in elems if 'var initial_runs' in elem.text]
         except:
@@ -373,7 +374,7 @@ class Mainloop(object):
             response = requests.get(self.server+loc, auth=self.auth,
                                     verify=False, stream=True)
             with open(dest, 'wb') as out_file:
-                shutil.copyfileobj(response.raw, out_file)
+                copyfileobj(response.raw, out_file)
             return dest
         except:
             return None
@@ -578,7 +579,7 @@ class Mainloop(object):
 # Helper functions
 def notblank(info, secret = False):
     text = ''
-    hidden = [input, getpass.getpass]
+    hidden = [input, getpass]
     while not text:
         text = hidden[secret](info.capitalize()+': ')
     return text
