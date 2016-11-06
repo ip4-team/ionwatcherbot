@@ -37,7 +37,7 @@ IonWatcherBot is currently in **early alpha version**, having decent basic funct
 
 # Executing IonWatcherBot #
  * execute the script: `python main.py` (or `python3` depending on your settings);  
- * input the Torrent Server password.  
+ * enter the Torrent Server password.  
 
 # Contacting the bot #
  * Start a chat with the username you chose for the bot (i.e. @ IW05UH_bot).  
