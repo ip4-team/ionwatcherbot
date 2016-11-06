@@ -52,8 +52,17 @@ IonWatcherBot is currently in **early alpha version**, having decent basic funct
  * Users in the queue and blocked users have no available action.  
  * Unknown users can add themselves to the queue.  
   
-  
-**Using `screen` on Linux to run the bot without having to keep an active terminal:**  
+
+# LICENSE #
+
+**IonWatcherBot is offered under the GNU General Public License.**  
+**Please read it here: https://www.gnu.org/copyleft/gpl.html**
+
+
+# FAQ #
+
+**1 . Will the bot keep running if I close the terminal/command window after I lunched the bot?**  
+A. Not per se, but this is doable. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
 `ssh` to the computer (with Linux) running the bot    
 `cd` to the ionwatcherbot directory  
 `screen python main.py`  
