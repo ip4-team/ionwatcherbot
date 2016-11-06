@@ -35,7 +35,7 @@ IonWatcherBot is currently in **early alpha version**, having decent basic funct
 
  * rename or copy it to `IonWatcher.cfg`;  
  * on line 6, replace `aDdYoUrToKenHere:AskBotFatherForIt` with your bot's token;  
- * on line 8, replace `myserver.mydomain.edu` with your Torrent Server address;  
+ * on line 8, replace `myserver.mydomain.edu` with your Torrent Server Browser address;  
  * if needed, replace the default username on line 10;  
  * add your Telegram username as administrator on line 15, like this: `admins = MyTelegramUsername`.  
 
@@ -91,5 +91,5 @@ To resume:
 **6 . Can I see who contacted the bot?**  
 A. Yes. Every command received by the bot, whether accepted or not by the bot, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
 
-**7 . Can I Delete the logfile and the saved images/PDFs?**  
-A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.  
+**7 . Can I delete the logfile and the saved images/PDFs?**  
+A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.
