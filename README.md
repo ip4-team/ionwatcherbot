@@ -4,7 +4,7 @@
 
 IonWatcherBot is a simple [Telegram bot](https://core.telegram.org/bots) which, when connected to a Torrent Server via network, is able to fetch information about runs in progress and send it to trusted users, without exposing the Torrent Server itself outside the network.
 
-IonWatcherBot is currently in **early alpha version**, having decent basic functionality but needing a few quick fixes about the following limitations:  
+IonWatcherBot is currently in **early alpha version**, having basic functionality but needing improvements about the following limitations:  
 
 * it does not yet use the Torrent Server API;
 * it only connects to one Ion Torrent server;
