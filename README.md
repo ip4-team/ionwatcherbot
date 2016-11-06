@@ -78,7 +78,7 @@ Removal of users from the approved list and removal of usernames from the blocke
 When manually adding users to a list, please use commas `,` to separate usernames.
 
 **5 . Will the bot keep running if I close the terminal/command window after I successfully launched it?**  
-A . Not per se, but this is doable. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
+A . Not *per se*, but you can set this on your own. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
 `cd` to the ionwatcherbot directory  
 `screen python main.py`  
 (input password)  
@@ -92,4 +92,4 @@ To resume:
 A. Yes. Every command received by the bot, whether accepted or not by the bot, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
 
 **7 . Can I Delete the logfile and the saved images/PDFs?**  
-A . Yes, but please do not delete the `download` directory.  
+A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.  
