@@ -61,8 +61,24 @@ IonWatcherBot is currently in **early alpha version**, having decent basic funct
 
 # FAQ #
 
-**1 . Will the bot keep running if I close the terminal/command window after I successfully launched it?**  
-A. Not per se, but this is doable. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
+**1 . Do you have any user/admin privileges on my bot?**  
+A . No. The only approved users and admins are the ones listed on your bot's configuration file. This is why each lab has to register a new username for their bot with the @ BotFather; all IonWatcherBots share their functionality (`main.py`) but are individualized for approved users, admins and server and have a unique auth token (your own `IonWatcher.cfg`).  
+
+**2 . Who can see my bot?**  
+A. Telegram bots, just like any other user, can be searched by name or username. If this is a concern, I suggest choosing an incospicuous name and username.  
+However, although the bot can be publicly contacted, it is designed to only offer information to approved users and admins. Of course, please report any deviation from this expected behavior.  
+
+**3 . Can I shutdown the bot remotely?**  
+A . Yes. As an administrator, send the `/kill` command to terminate the script.  
+
+**4 . How can I edit the lists of approved users, admins and blocked usernames?**  
+A . The only activity available remotely is the approval or block of Telegram usernames listed within the "queue".   
+For security reasons, approval or removal of an admin is limited to manually editing the `IonWatcher.cfg` file from the computer hosting your IonWatcherBot.  
+Removal of users from the approved list and removal of usernames from the blocked list will possibly be added to the online options later in time. For now, these lists must also be edited manually.  
+When manually adding users to a list, please use commas `,` to separate usernames.
+
+**5 . Will the bot keep running if I close the terminal/command window after I successfully launched it?**  
+A . Not per se, but this is doable. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
 `cd` to the ionwatcherbot directory  
 `screen python main.py`  
 (input password)  
@@ -70,4 +86,10 @@ A. Not per se, but this is doable. On Linux, for example, you could use `screen`
 (detached)  
 
 To resume:  
-`screen -r`
+`screen -r`  
+
+**6 . Can I see who contacted the bot?**  
+A. Yes. Every command received by the bot, whether accepted or not by the bot, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
+
+**7 . Can I Delete the logfile and the saved images/PDFs?**  
+A . Yes, but please do not delete the `download` directory.  
