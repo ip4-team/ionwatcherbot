@@ -63,7 +63,6 @@ IonWatcherBot is currently in **early alpha version**, having decent basic funct
 
 **1 . Will the bot keep running if I close the terminal/command window after I successfully launched it?**  
 A. Not per se, but this is doable. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
-`ssh` to the computer (with Linux) running the bot    
 `cd` to the ionwatcherbot directory  
 `screen python main.py`  
 (input password)  
@@ -71,5 +70,4 @@ A. Not per se, but this is doable. On Linux, for example, you could use `screen`
 (detached)  
 
 To resume:  
-`ssh` to the same computer  
 `screen -r`
