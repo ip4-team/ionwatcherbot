@@ -36,7 +36,7 @@ IonWatcherBot is currently in **early alpha version**, having decent basic funct
  * add your Telegram username as administrator on line 15, like this: `admins = MyTelegramUsername`.  
 
 # Executing IonWatcherBot #
- * execute the script: `python main.py` (or `python3` depending on your settings);  
+ * execute the script, e.g. `python main.py` (or `python3` depending on your settings);  
  * enter the Torrent Server password.  
 
 # Contacting the bot #
