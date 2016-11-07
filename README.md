@@ -8,7 +8,7 @@ IonWatcherBot is currently in **early alpha version**, having basic functionalit
 
 * it does not yet use the Torrent Server API;
 * it only connects to one Ion Torrent server;
-* it uses Telegram usernames for authentication, which are unique but are changeable;
+* it uses Telegram usernames for authentication, which are unique but are optional and changeable;
 * it lacks administrative tools to remotely clear the logfile and data caches.
 
 
@@ -46,6 +46,7 @@ IonWatcherBot is currently in **early alpha version**, having basic functionalit
 
 # Contacting the bot #
 
+ * You **must** have a [Telegram username](https://telegram.org/faq#q-what-can-i-use-as-my-username) to contact the bot in a meaningful way.  
  * Start a chat with the username you chose for the bot (i.e. @ IW05UH_bot).  
  * Administrators have the right to approve or block an user that has asked to join the user queue, and to shut down the bot remotely via the unlisted command, `/kill`.  
  * Administrators and approved users have the rights to monitor runs on the Torrent Server and to view the user queue (Telegram users awaiting approval as bot users).  
@@ -89,7 +90,7 @@ To resume:
 `screen -r`  
 
 **6 . Can I see who contacted the bot?**  
-A. Yes. Every command received by the bot, whether accepted or not by the bot, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
+A. Yes, although partially at the moment. Every command received by the bot, whether accepted or not by the bot, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
 
 **7 . Can I delete the logfile and the saved images/PDFs?**  
 A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.
