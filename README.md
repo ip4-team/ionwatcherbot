@@ -97,3 +97,7 @@ A . Yes, but please do not delete the `download` directory. The early alpha vers
 
 **8 . How secure are messages and data sent to and from IonWatcherBot?**  
 A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
+
+
+# Known bugs #
+* The number of elapsed flows, and other run data, only updates on tapping the "Monitor" button; tapping the run number button will update images and PDF, but not the number of processed flows.
