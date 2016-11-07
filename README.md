@@ -47,7 +47,7 @@ IonWatcherBot is currently in **early alpha version**, having basic functionalit
 # Contacting the bot #
 
  * You **must** have a [Telegram username](https://telegram.org/faq#q-what-can-i-use-as-my-username) to contact the bot in a meaningful way.  
- * Start a chat, or if you want more security, a [secret chat](https://telegram.org/faq#secret-chats) with the username you chose for the bot (i.e. @ IW05UH_bot).  
+ * Start a chat with the username you chose for the bot (i.e. @ IW05UH_bot).  
  * Administrators have the right to approve or block an user that has asked to join the user queue, and to shut down the bot remotely via the unlisted command, `/kill`.  
  * Administrators and approved users have the rights to monitor runs on the Torrent Server and to view the user queue (Telegram users awaiting approval as bot users).  
  * Users in the queue and blocked users have no available action.  
@@ -96,5 +96,4 @@ A. Yes, although partially at the moment. Every command received by the bot, whe
 A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.  
 
 **8 . How secure are messages sent to and from IonWatcherBot?**  
-A . Although IonWatcherBot does not offer a layer of encryption itself, all messages exchanged via Telegram follow Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram), which at the moment this FAQ is based on the MTProto protocol. If you prefer having an additional layer of encryption, you might like to start a [secret chat](https://telegram.org/faq#secret-chats) with the bot.  
-
+A . Although IonWatcherBot does not offer a layer of encryption itself, all messages exchanged via Telegram follow Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram), which at the moment this FAQ is based on the MTProto protocol.  
