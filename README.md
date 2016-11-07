@@ -79,7 +79,7 @@ Removal of users from the approved list and removal of usernames from the blocke
 When manually adding users to a list, please use commas `,` to separate usernames.
 
 **5 . Will the bot keep running if I close the terminal/command window after I successfully launched it?**  
-A . Not *per se*, but you can set this on your own. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
+A . Not *per se*; the bot would stop, but you can arrange on your own for it to keep running. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
 `cd` to the ionwatcherbot directory  
 `screen python main.py`  
 (input password)  
