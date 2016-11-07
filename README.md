@@ -90,7 +90,7 @@ To resume:
 `screen -r`  
 
 **6 . Can I see who contacted the bot?**  
-A. Yes, although partially at the moment. Every command received by the bot, whether accepted or not by the bot, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
+A. Yes, although partially at the moment. Every command received by the bot, whether accepted or not, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
 
 **7 . Can I delete the logfile and the saved images/PDFs?**  
 A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.
