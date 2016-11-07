@@ -96,4 +96,4 @@ A. Yes, although partially at the moment. Every command received by the bot, whe
 A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.  
 
 **8 . How secure are messages and data sent to and from IonWatcherBot?**  
-A . Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
+A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
