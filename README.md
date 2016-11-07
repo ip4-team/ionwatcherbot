@@ -100,4 +100,4 @@ A . They are fairly secure. Although IonWatcherBot does not offer a layer of enc
 
 
 # Known bugs #
-* The number of elapsed flows, and other run data, only updates on tapping the "Monitor" button; tapping the run number button will update images and PDF, but not the number of processed flows.
+* The number of elapsed flows is only updated on tapping the "Monitor" button; tapping the run number button will update images and PDF, but not the number of processed flows.
