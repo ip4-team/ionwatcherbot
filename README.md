@@ -95,5 +95,5 @@ A. Yes, although partially at the moment. Every command received by the bot, whe
 **7 . Can I delete the logfile and the saved images/PDFs?**  
 A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.  
 
-**8 . How secure are messages sent to and from IonWatcherBot?**  
-A . Although IonWatcherBot does not offer a layer of encryption itself, all messages exchanged via Telegram follow Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram), which at the moment this FAQ is based on the MTProto protocol.  
+**8 . How secure are messages and data sent to and from IonWatcherBot?**  
+A . Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follow Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
