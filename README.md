@@ -36,7 +36,7 @@ IonWatcherBot is currently in **early alpha version**, having basic functionalit
  * rename or copy it to `IonWatcher.cfg`;  
  * on line 6, replace `aDdYoUrToKenHere:AskBotFatherForIt` with your bot's token;  
  * on line 8, replace `myserver.mydomain.edu` with your Torrent Server Browser address;  
- * if needed, replace the default username on line 10;  
+ * if needed, replace the default server username on line 10;  
  * add your Telegram username as administrator on line 15, like this: `admins = MyTelegramUsername`.  
 
 # Executing IonWatcherBot #
