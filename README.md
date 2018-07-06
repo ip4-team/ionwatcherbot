@@ -6,7 +6,6 @@ IonWatcherBot is a simple [Telegram bot](https://core.telegram.org/bots) which, 
 
 IonWatcherBot is currently in **early alpha version**, having basic functionality but needing improvements about the following limitations:  
 
-* it does not yet use the Torrent Server API;
 * it only connects to one Ion Torrent server;
 * it uses Telegram usernames for authentication, which are unique but are optional and changeable;
 * it lacks administrative tools to remotely clear the logfile and data caches.

@@ -8,26 +8,18 @@ Created on Sat Oct 15 17:08:42 2016
 # TODO add "clean" to clen files and logs
 # TODO user administration
 
-
 import os, logging, re, json, requests
 from collections import OrderedDict
 from configparser import ConfigParser
 from getpass import getpass
 from shutil import copyfileobj
 
-## To install bs4:
-# pip install beautifulsoup4
-## In case "Couldn't find a tree builder":
-# pip install lxml
-##  or possibly:
-# sudo apt install python-lxml
-from bs4 import BeautifulSoup
-
 ## To install the telegram module:
 # pip install python-telegram-bot
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, error
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 
+api = 'rundb/api/v1/'
 
 # Decorators
 class Usercheck(object):
@@ -81,8 +73,8 @@ class Usercheck(object):
 
 class Mainloop(object):
     
-    # The cfg_text variable must hold  the basic structure of the config file.
-    # At instantiation, the config file is checked for the field listed here.
+    # The cfg_text variable holds the basic structure of the config file.
+    # At instantiation, the config file is checked for the fields listed here.
     # When saving a config file, only the fields listed here will be saved.
     cfg_text = OrderedDict([
             ('NETWORK', OrderedDict([
@@ -233,7 +225,15 @@ class Mainloop(object):
         elif query.data.startswith("Run_"):
             run_id = int(query.data[4:])
             this_run = self.runs.get(run_id, None)
-            self.run_report(bot, update, this_run)
+            try:
+                self.run_report(bot, update, this_run)
+            except error.TimedOut:
+                user = get_user(update)
+                bot.sendMessage(chat_id=user.id, text="Sorry, I lost connection to Telegram while fulfilling your request.")
+                logging.warning("Lost connection to Telegram.")
+                self.chats[user.id] = 'back'
+                self.keyboard(bot, update)
+                
         
         elif query.data.startswith("App_"):
                 app_username = query.data[4:]
@@ -277,7 +277,7 @@ class Mainloop(object):
             elif user.username in self.users:
                 text = "End of queue."
         
-        if status != 'start':
+        if status == 'back' or status != 'start':
             keyboard.extend(self.keyboards['back'])
         
            
@@ -307,44 +307,21 @@ class Mainloop(object):
         
         flag = ''
         
-        #'''
+        api_page = self.server+api+'monitorresult/'
+        
+        logging.info("Contacting: "+api_page)
         try:
-            monitor_table = requests.get(self.server+'monitor/#full',
+            response = requests.get(api_page,
                                          auth=self.auth, 
                                          verify=False)
-        except:
-            logging.warning("Server unreachable or bad auth.")
+            monitor_json = json.loads(response.text)
+            
+        except Exception as exc:
+            logging.warning("Server unreachable or bad auth: " + exc)
             flag = 'no_connection'
             return [None, flag]
-        try:
-            soup = BeautifulSoup(monitor_table.text, 'lxml')
-            elems=soup.select('script')
-            data = [elem for elem in elems if 'var initial_runs' in elem.text]
-        except:
-            data = None
-        #'''
-        
-        '''# Testing
-        with open('testing_data/monitor/index.html', 'r') as f:
-            recorded_text = f.read()
-            soup = bs4.BeautifulSoup(recorded_text, 'lxml')
-        elems=soup.select('script')
-        data = [elem for elem in elems if 'var initial_runs' in elem.text]
-        '''# / Testing
-
-        if not data:
-            logging.warning("Couldn't fetch data for runs in progress. Dumping soup:")
-            logging.warning(soup.text)
-            flag = 'no_data'
-            return [None, flag]
-        elif len(data) > 1:
-            logging.warning("Multiple entries for runs in progress. Dumping data:")
-            logging.warning(str(data))
-            flag = 'multiple'
-        else:
-            flag = 'ok'
-        good = data[0].text[data[0].text.index('{'):data[0].text.rfind('}')+1]
-        monitor_json = json.loads(good)
+        flag = 'ok'
+        # meta = monitor_json['meta']
         runs = {obj['id']: obj for obj in monitor_json['objects'] if obj}
         return [runs, flag]
 
@@ -502,42 +479,49 @@ class Mainloop(object):
         # TODO see flows
         runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
         run_dir_id = run['id']
-        add_wells = int(run['analysismetrics']['total_wells']) - \
-                            int(run['analysismetrics']['excluded'])
-        bead = int(run['analysismetrics']['bead'])
-        live = int(run['analysismetrics']['live'])
-        lib = int(run['analysismetrics']['lib'])
-        libFinal = int(run['analysismetrics']['libFinal'])
-        key_signal = run['libmetrics']['aveKeyCounts']
-        mean_length = run['libmetrics']['q20_mean_alignment_length']
-        run_status = run['status']
-        loading_ok = (100 * bead/add_wells) >= int(run['experiment']['qcThresholds']['Bead Loading (%)'])
-        usable_ok = (100 * libFinal/lib) >= int(run['experiment']['qcThresholds']['Usable Sequence (%)'])
-        key_sig_ok = key_signal >=  int(run['experiment']['qcThresholds']['Key Signal (1-100)'])
-        string = ('[{}]\n{}\n'
-                  '{} Loading: {:.1%} {}\n'
-                  '{} Live: {:.1%}\n'
-                  '{} Library: {:.1%}\n'
-                  '{} Usable: {:.1%} {}\n'
-                  '{} Key signal: {} {}\n'
-                  'Mean length: {}\n'
-                  'Status: {}'.format(run_dir_id, runname, 
-                                      *pcsquares(bead/add_wells), mark(loading_ok), # Loading
-                                      *pcsquares(live/bead), # Live
-                                      *pcsquares(lib/live), # Library
-                                      *pcsquares(libFinal/lib), mark(usable_ok), # Usable
-                                      pcsquares(key_signal/100)[0], key_signal, mark(key_sig_ok),
-                                      mean_length,
-                                      run_status))        
-        bot.sendMessage(chat_id=user.id, text=string)
+        
+        if run['analysismetrics'] is None:
+            bot.sendMessage(chat_id=user.id, text='No analysis metrics yet.')
+        else:
+            add_wells = int(run['analysismetrics']['total_wells']) - \
+                                int(run['analysismetrics']['excluded'])
+            bead = int(run['analysismetrics']['bead'])
+            live = int(run['analysismetrics']['live'])
+            lib = int(run['analysismetrics']['lib'])
+            libFinal = int(run['analysismetrics']['libFinal'])
+        if run['libmetrics'] is None:
+            bot.sendMessage(chat_id=user.id, text='No library metrics yet.')
+        else:
+            key_signal = run['libmetrics']['aveKeyCounts']
+            mean_length = run['libmetrics']['q20_mean_alignment_length']
+            run_status = run['status']
+            loading_ok = (100 * bead/add_wells) >= int(run['experiment']['qcThresholds']['Bead Loading (%)'])
+            usable_ok = (100 * libFinal/lib) >= int(run['experiment']['qcThresholds']['Usable Sequence (%)'])
+            key_sig_ok = key_signal >=  int(run['experiment']['qcThresholds']['Key Signal (1-100)'])
+            string = ('[{}]\n{}\n'
+                      '{} Loading: {:.1%} {}\n'
+                      '{} Live: {:.1%}\n'
+                      '{} Library: {:.1%}\n'
+                      '{} Usable: {:.1%} {}\n'
+                      '{} Key signal: {} {}\n'
+                      'Mean length: {}\n'
+                      'Status: {}'.format(run_dir_id, runname, 
+                                          *pcsquares(bead/add_wells), mark(loading_ok), # Loading
+                                          *pcsquares(live/bead), # Live
+                                          *pcsquares(lib/live), # Library
+                                          *pcsquares(libFinal/lib), mark(usable_ok), # Usable
+                                          pcsquares(key_signal/100)[0], key_signal, mark(key_sig_ok),
+                                          mean_length,
+                                          run_status))        
+            bot.sendMessage(chat_id=user.id, text=string)
 
-        for image_data in self.images:
-            image = self.get_image(run_dir_id, image_data[0])
-            if image:
-                bot.sendPhoto(chat_id=user.id, photo=open(image, 'rb'))
-            else:
-                bot.sendMessage(chat_id=user.id,
-                                text="[no {} image]".format(image_data[1]))
+            for image_data in self.images:
+                image = self.get_image(run_dir_id, image_data[0])
+                if image:
+                    bot.sendPhoto(chat_id=user.id, photo=open(image, 'rb'))
+                else:
+                    bot.sendMessage(chat_id=user.id,
+                                    text="[no {} image]".format(image_data[1]))
         self.report_link(bot, update, run)
 
 
