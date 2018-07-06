@@ -505,14 +505,15 @@ class Mainloop(object):
                       '{} Usable: {:.1%} {}\n'
                       '{} Key signal: {} {}\n'
                       'Mean length: {}\n'
-                      'Status: {}'.format(run_dir_id, runname, 
+                      'Status: {} {}'.format(run_dir_id, runname, 
                                           *pcsquares(bead/add_wells), mark(loading_ok), # Loading
                                           *pcsquares(live/bead), # Live
                                           *pcsquares(lib/live), # Library
                                           *pcsquares(libFinal/lib), mark(usable_ok), # Usable
                                           pcsquares(key_signal/100)[0], key_signal, mark(key_sig_ok),
                                           mean_length,
-                                          run_status))        
+                                          run_status,
+                                          ['(at last monitoring)', ''][run_status=='Completed']))        
             bot.sendMessage(chat_id=user.id, text=string)
 
             for image_data in self.images:
