@@ -13,6 +13,15 @@ from collections import OrderedDict
 from configparser import ConfigParser
 from getpass import getpass
 from shutil import copyfileobj
+from threading import Timer
+
+## To install bs4:
+# pip install beautifulsoup4
+## In case "Couldn't find a tree builder":
+# pip install lxml
+##  or possibly:
+# sudo apt install python-lxml
+from bs4 import BeautifulSoup
 
 ## To install the telegram module:
 # pip install python-telegram-bot
@@ -90,6 +99,8 @@ class Mainloop(object):
             ('MESSAGES', OrderedDict([
                     ('start', 'Initial greeting, /start command is received by an unknown user'),
                     ('kill', '/kill command is received by an admin'),
+                    ('tick', '/tick command is received by an admin'),
+                    ('untick', '/untick command is received by an admin'),
                     ('negate', 'Command issued by unauthorized user')]))
             ])
     # Fields listed under `optionals` can be left blank in the config file;
@@ -102,6 +113,8 @@ class Mainloop(object):
                            [InlineKeyboardButton("View queue", callback_data='Q')],
                            [InlineKeyboardButton("Exit", callback_data='E')]],
                  'kill': [[InlineKeyboardButton("Kill the bot", callback_data='K')]],
+                 'tick': [[InlineKeyboardButton("Start ticking", callback_data='T')]],
+                 'untick': [[InlineKeyboardButton("Stop ticking", callback_data='U')]],
                  'back': [[InlineKeyboardButton("Back", callback_data='B')]]
                                  
                                  }
@@ -116,6 +129,7 @@ class Mainloop(object):
         self.users = None
         self.queue = None
         self.blocked = None
+        self.rt = dict() # {id: RepeatTimer()}
         self.runs = dict()
         
         # chats are stored in the form: {id: 'status'}, where 'status' can be:
@@ -145,6 +159,8 @@ class Mainloop(object):
         # register handlers
         dispatcher.add_handler(CommandHandler('start', self.start))
         dispatcher.add_handler(CommandHandler('kill', self.kill))
+        dispatcher.add_handler(CommandHandler('tick', self.tick))
+        dispatcher.add_handler(CommandHandler('untick', self.untick))
         dispatcher.add_handler(CommandHandler('monitor', self.monitor))
         dispatcher.add_handler(CommandHandler('join', self.join))
         dispatcher.add_handler(CommandHandler('bye', self.bye))
@@ -216,6 +232,8 @@ class Mainloop(object):
         sender = {'M': self.monitor,
                   'Q': self.join,
                   'K': self.kill,
+                  'T': self.tick,
+                  'U': self.untick,
                   'E': self.bye,
                   'B': self.start}
                   
@@ -560,6 +578,56 @@ class Mainloop(object):
         #self.updater.stop() # is just not working to stop the script
         os._exit(0)
     
+    @Usercheck('admin')
+    def tick(self, bot, update):
+        '''
+        Start ticking system uptime every half an hour.
+        '''
+        user = get_user(update)
+        self.rt[user] = RepeatedTimer(30*60, self.send_tick, user, bot)
+        bot.sendMessage(chat_id=user.id, 
+                        text=self.config['MESSAGES']['tick'])        
+    @Usercheck('admin')
+    def untick(self, bot, update):
+        '''
+        Start ticking system uptime every half an hour.
+        '''
+        user = get_user(update)
+        if self.rt.get(user, False):
+            self.rt[user].stop()
+            bot.sendMessage(chat_id=user.id, 
+                            text=self.config['MESSAGES']['untick'])
+    
+    def send_tick(self, user, bot, complete = False):
+        global text
+        response = requests.get(self.server+'configure/services/',
+                                auth=self.auth, 
+                                verify=False)
+        soup = BeautifulSoup(response.text, 'lxml')
+        table = soup.find_all('table') # new method name in BS4 is find_all
+        if table:
+            vm_info = table[0]
+            headtext = get_tag_text(vm_info.thead, 'th')
+            bodytext = get_tag_text(vm_info.tbody, 'td')
+            if len(headtext) == len(bodytext):
+                retlist = []
+                for head, body in zip(headtext, bodytext):
+                    retlist.append('{}: {}'.format(head, body))
+                if complete:
+                    retstring = 'Server status:\n'+(','.join(retlist))
+                else:
+                    retstring = retlist[-1]
+                bot.sendMessage(chat_id=user.id, 
+                                text=retstring)
+                return
+        bot.sendMessage(chat_id=user.id,
+                        text="Warning: Could not retrieve VM info.")
+        return
+        
+        
+        
+        bot.sendMessage(chat_id=user.id, 
+                text=text[:50])
 
 # Helper functions
 def notblank(info, secret = False):
@@ -612,6 +680,52 @@ def pcsquares(value):
     
 def mark(boolean):
     return [u'\U0000274C', u'\U00002705'][boolean]
+
+
+def get_tag_text(bs4tag, tagstring):
+    taglist = bs4tag.find_all(tagstring)
+    taglist = [collapse(item.text) for item in taglist]
+    return taglist
+
+def collapse(text):
+    '''
+    Solution derived from StackOVerflow user Alex Martelli (.../95810/alex-martelli):
+    https://stackoverflow.com/questions/1274906/collapsing-whitespace-in-a-string
+    
+    '''
+    rex = re.compile(r'\W+')
+    return rex.sub(' ', text).strip()
+
+class RepeatedTimer(object):
+    '''
+    From StackOverflow user MestreLion (.../users/624066/mestrelion):
+    https://stackoverflow.com/questions/474528/what-is-the-best-way-to-repeatedly-execute-a-function-every-x-seconds-in-python
+    
+    '''
+    def __init__(self, interval, function, *args, **kwargs):
+        self._timer     = None
+        self.interval   = interval
+        self.function   = function
+        self.args       = args
+        self.kwargs     = kwargs
+        self.is_running = False
+        self.start()
+
+    def _run(self):
+        self.is_running = False
+        self.start()
+        self.function(*self.args, **self.kwargs)
+
+    def start(self):
+        if not self.is_running:
+            self._timer = Timer(self.interval, self._run)
+            self._timer.start()
+            self.is_running = True
+
+    def stop(self):
+        self._timer.cancel()
+        self.is_running = False
+
 
 
 if __name__ == '__main__':
