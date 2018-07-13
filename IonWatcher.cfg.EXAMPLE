@@ -28,4 +28,6 @@ start = Hello, I am the IonWatcher bot at the ### lab at ###. Please type /join 
 kill = Goodbye, cruel world!
 # Command issued by unauthorized user
 negate = You are not authorized to issue this command. Please type /start to start interacting with this bot.
-
+# tick and untick
+tick = Starting to tick VM uptime.
+untick = Stopped ticking VM uptime.
