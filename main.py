@@ -587,6 +587,8 @@ class Mainloop(object):
         self.rt[user] = RepeatedTimer(30*60, self.send_tick, user, bot)
         bot.sendMessage(chat_id=user.id, 
                         text=self.config['MESSAGES']['tick'])        
+        self.send_tick(user, bot, complete=True)
+        
     @Usercheck('admin')
     def untick(self, bot, update):
         '''
@@ -614,7 +616,7 @@ class Mainloop(object):
                 for head, body in zip(headtext, bodytext):
                     retlist.append('{}: {}'.format(head, body))
                 if complete:
-                    retstring = 'Server status:\n'+(','.join(retlist))
+                    retstring = 'Server status:\n'+('\n'.join(retlist))
                 else:
                     retstring = retlist[-1]
                 bot.sendMessage(chat_id=user.id, 
