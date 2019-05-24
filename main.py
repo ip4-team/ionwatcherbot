@@ -5,7 +5,7 @@ Created on Sat Oct 15 17:08:42 2016
 @author: Roberto
 """
 
-# TODO add "clean" to clen files and logs
+# TODO add "clean" to clean files and logs
 # TODO user administration
 
 import os, logging, re, json, requests
@@ -732,6 +732,4 @@ class RepeatedTimer(object):
 
 if __name__ == '__main__':
     loop = Mainloop()
-    
-    
-    
+
