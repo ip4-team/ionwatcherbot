@@ -4,11 +4,7 @@
 
 IonWatcherBot is a simple [Telegram bot](https://core.telegram.org/bots) which, when connected to an [Ion Torrent](https://en.wikipedia.org/wiki/Ion_semiconductor_sequencing) Server via network, is able to fetch information about runs in progress and send it to trusted users, without exposing the Torrent Server itself outside the network.
 
-IonWatcherBot is currently in **early alpha version**, having basic functionality but needing improvements about the following limitations:  
-
-* it only connects to one Ion Torrent server;
-* it uses Telegram usernames for authentication, which are unique but are optional and changeable;
-* it lacks administrative tools to remotely clear the logfile and data caches.
+IonWatcherBot is currently in **early alpha version**.
 
 
 # How to install IonWatcherBot #
@@ -92,7 +88,7 @@ To resume:
 A. Yes, although partially at the moment. Every command received by the bot, whether accepted or not, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
 
 **7 . Can I delete the logfile and the saved images/PDFs?**  
-A . Yes, but please do not delete the `download` directory. The early alpha version expects it to be there.  
+A . Yes, but please do not delete the `download` directory. The bot expects it to be there.  
 
 **8 . How secure are messages and data sent to and from IonWatcherBot?**  
-A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
+A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's point-to-point [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
