@@ -43,7 +43,7 @@ IonWatcherBot is currently in **early alpha version**.
 
  * You **must** have a [Telegram username](https://telegram.org/faq#q-what-can-i-use-as-my-username) to contact the bot in a meaningful way.  
  * Start a chat with the username you chose for the bot (i.e. @ IW05UH_bot).  
- * Administrators have the right to approve or block an user that has asked to join the user queue, and to shut down the bot remotely via the unlisted command, `/kill`.  
+ * Administrators have the right to approve or block an user that has asked to join the user queue, and to shut down the bot remotely via the command `/kill`.  
  * Administrators and approved users have the rights to monitor runs on the Torrent Server and to view the user queue (Telegram users awaiting approval as bot users).  
  * Users in the queue and blocked users have no available action.  
  * Unknown users can add themselves to the queue.  
