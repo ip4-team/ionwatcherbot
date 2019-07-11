@@ -20,7 +20,7 @@ IonWatcherBot is currently in **early alpha version**.
 
 3 . Within the Telegram app, [create a new bot](https://core.telegram.org/bots#creating-a-new-bot). In short:  
 
- * Start a chat with @ BotFather  
+ * Start a chat with @BotFather  
  * Send the command `/newbot` to start creating the bot  
  * Choose a display name for the bot (i.e. "Ion Watcher")  
  * Choose a username for the bot (i.e. "IW05UH_bot")  
