@@ -14,6 +14,7 @@ from configparser import ConfigParser
 from getpass import getpass
 from shutil import copyfileobj
 from threading import Timer
+import time
 
 ## To install bs4:
 # pip install beautifulsoup4
@@ -51,6 +52,7 @@ class Userlevel(object):
             instance.last_bot = bot
             user = get_user(update)
             username = user.username
+            chat = instance.chats[user.id]
             if update.message:
                 text = update.message.text
             elif update.callback_query:
@@ -132,8 +134,9 @@ class Mainloop(object):
         self.rt = dict() # {id: RepeatTimer()}
         self.runs = dict()
         
-        # chats are stored in the form: {id: 'status'}, where 'status' can be:
-        # 'start', 'adm_join', 'monitor'
+        # chats are stored as: {id: {'status': <status>, 'lastpin': <time>}, 
+        # where 'status' can be: 'start', 'join', 'monitor', 'back', 'bye'
+        # and 'lastpin' is the last time the user entered their pin.
         self.chats = {}
         config_set = self.get_config()
         if not config_set:
@@ -250,7 +253,7 @@ class Mainloop(object):
                 user = get_user(update)
                 bot.sendMessage(chat_id=user.id, text="Sorry, I lost connection to Telegram while fulfilling your request.")
                 logging.warning("Lost connection to Telegram.")
-                self.chats[user.id] = 'back'
+                self.chats[user.id]['status'] = 'back'
                 self.keyboard(bot, update)
                 
         
@@ -270,7 +273,7 @@ class Mainloop(object):
         keyboard = []
         user = get_user(update)
         text = "How can I help you, {}?".format(user.first_name)
-        status = self.chats.get(user.id, 'start')
+        status = self.chats[user.id]['status']
         if status == 'start':
             if user.username in self.users:
                 keyboard.extend(self.keyboards['start'])
@@ -312,7 +315,7 @@ class Mainloop(object):
             self.pdf(bot, update, run_dir_id)
         else:
             bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
-        self.chats[user.id] = 'monitor'
+        self.chats[user.id]['status'] = 'monitor'
         self.keyboard(bot, update)
             
 
@@ -376,13 +379,7 @@ class Mainloop(object):
             return None
 
     # User actions
-    @Userlevel('any')
-    def bye(self, bot, update):
-        user = get_user(update)
-        self.chats[user.id] = 'bye'
-        bot.sendMessage(chat_id=user.id, 
-                        text="Goodbye, {}. Type /start to restart.".format(user.first_name))
-
+    # For practicality, both `join` and `start` are entry points for new chats.
     @Userlevel('any')
     def join(self, bot, update):
         '''
@@ -392,8 +389,9 @@ class Mainloop(object):
         if user.username in self.queue:
             bot.sendMessage(chat_id=user.id, 
                     text="Hello, {}. You are already in the queue.".format(user.username))
-            self.chats[user.id] = 'start'
+            self.chats[user.id]['status'] = 'start'
         elif user.username not in self.users:
+            self.chats[user.id] = {'status': 'join', 'lastpin': 0}
             self.queue.add(user.username)
             self.save_config()
             bot.sendMessage(chat_id=user.id, 
@@ -402,12 +400,12 @@ class Mainloop(object):
         else:
             if not self.queue:
                 bot.sendMessage(chat_id=user.id, text="There are no users in the queue.")
-                self.chats[user.id] = 'start'
+                self.chats[user.id]['status'] = 'start'
             else:
                 bot.sendMessage(chat_id=user.id, 
                         text="The following users are in the queue:\n" + \
                         ''.join(['@{}\n'.format(name) for name in self.queue]))
-                self.chats[user.id] = 'join'
+                self.chats[user.id]['status'] = 'join'
         self.keyboard(bot, update)
 
 
@@ -432,11 +430,20 @@ class Mainloop(object):
         
         # If it's a new user, greet him/her
         else:
+            self.chats[user.id] = {'status': 'start', 'lastpin': 0}
             bot.sendMessage(chat_id=user.id, 
                             text=self.config['MESSAGES']['start'])
-        self.chats[user.id] = 'start'
+        self.chats[user.id]['status'] = 'start'
         self.keyboard(bot, update)
     
+
+    @Userlevel('user')
+    def bye(self, bot, update):
+        user = get_user(update)
+        self.chats[user.id]['status'] = 'bye'
+        bot.sendMessage(chat_id=user.id, 
+                        text="Goodbye, {}. Type /start to restart.".format(user.first_name))
+
 
     @Userlevel('user')
     def monitor(self, bot, update):
@@ -456,7 +463,7 @@ class Mainloop(object):
             bot.sendMessage(chat_id=user.id,
                             text="I'm sorry {}, I couldn't retrieve any data.".format(
                             user.first_name))
-            self.chats[user.id] = 'start'
+            self.chats[user.id]['status'] = 'start'
             self.keyboard(bot, update)
             return
         elif flag == 'multiple':
@@ -487,7 +494,7 @@ class Mainloop(object):
                           'Status: {}'.format(run_dir_id, runname,         
                                               run_status))
                 bot.sendMessage(chat_id=user.id, text=string)
-            self.chats[user.id] = 'monitor'
+            self.chats[user.id]['status'] = 'monitor'
 
         self.keyboard(bot, update)
 
