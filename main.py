@@ -31,7 +31,7 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 api = 'rundb/api/v1/'
 
 # Decorators
-class Usercheck(object):
+class Userlevel(object):
     '''
     This class holds a decorator that will be used to check for user privileges
     after a command is received.
@@ -56,7 +56,7 @@ class Usercheck(object):
             elif update.callback_query:
                 text = "[Button_{}]".format(update.callback_query.data)
             else:
-                logging.warning("couldn't establish user. update is:" + str(update))
+                logging.warning("couldn't establish user. Update is:" + str(update))
                 return None
             negate_text = instance.config['MESSAGES']['negate']
             if username in instance.blocked:
@@ -375,14 +375,14 @@ class Mainloop(object):
             return None
 
     # User actions
-    @Usercheck('any')
+    @Userlevel('any')
     def bye(self, bot, update):
         user = get_user(update)
         self.chats[user.id] = 'bye'
         bot.sendMessage(chat_id=user.id, 
                         text="Goodbye, {}. Type /start to restart.".format(user.first_name))
 
-    @Usercheck('any')
+    @Userlevel('any')
     def join(self, bot, update):
         '''
         Add the user to the join queue, or view queue if admin
@@ -410,7 +410,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
 
 
-    @Usercheck('any')
+    @Userlevel('any')
     def start(self, bot, update):
         '''
         The basic command to start a chat.
@@ -437,7 +437,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
     
 
-    @Usercheck('user')
+    @Userlevel('user')
     def monitor(self, bot, update):
         '''
         Return data about the current runs in progress.
@@ -491,7 +491,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
 
 
-    @Usercheck('user')
+    @Userlevel('user')
     def run_report(self, bot, update, run):
         user = get_user(update)
         # TODO see flows
@@ -545,7 +545,7 @@ class Mainloop(object):
 
 
 
-    @Usercheck('admin')
+    @Userlevel('admin')
     def approve(self, bot, update, username):
         user = get_user(update)
         self.users.add(username)
@@ -556,7 +556,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
     
 
-    @Usercheck('admin')
+    @Userlevel('admin')
     def block(self, bot, update, username):
         user = get_user(update)
         self.blocked.add(username)
@@ -567,7 +567,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
 
 
-    @Usercheck('admin')
+    @Userlevel('admin')
     def kill(self, bot, update):
         '''
         Stop the updater.
@@ -578,7 +578,7 @@ class Mainloop(object):
         #self.updater.stop() # is just not working to stop the script
         os._exit(0)
     
-    @Usercheck('admin')
+    @Userlevel('admin')
     def tick(self, bot, update):
         '''
         Start ticking system uptime every half an hour.
@@ -589,7 +589,7 @@ class Mainloop(object):
                         text=self.config['MESSAGES']['tick'])        
         self.send_tick(user, bot, complete=True)
         
-    @Usercheck('admin')
+    @Userlevel('admin')
     def untick(self, bot, update):
         '''
         Start ticking system uptime every half an hour.
