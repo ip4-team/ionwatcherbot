@@ -65,7 +65,7 @@ class Userlevel(object):
             elif self.userlevel == 'any':
                 auth = True
             elif self.userlevel == 'user':
-                auth = instance.users.union(instance.admins)
+                auth = instance.users
             else:
                 auth = instance.admins
             if auth is True or username in auth:
@@ -196,8 +196,9 @@ class Mainloop(object):
             else:
                 self.config = config
                 # Admins, users and queue must be transformed to list; pair with save_config
-                self.admins = toset(self.config['COMM']['admins'])
-                self.users = toset(self.config['COMM']['users'])
+                self.admins = todict(self.config['COMM']['admins'])
+                self.users = todict(self.config['COMM']['users'])
+                self.users.update(self.admins)
                 self.queue = toset(self.config['COMM']['queue'])
                 self.blocked = toset(self.config['COMM']['blocked'])
                 self.server = format_server_address(self.config['NETWORK']['server'])
@@ -271,9 +272,9 @@ class Mainloop(object):
         text = "How can I help you, {}?".format(user.first_name)
         status = self.chats.get(user.id, 'start')
         if status == 'start':
-            if user.username in self.admins.union(self.users):
+            if user.username in self.users:
                 keyboard.extend(self.keyboards['start'])
-            elif user.username in self.queue.union(self.blocked):
+            elif user.username in self.blocked or user.username in self.queue:
                 return
             else:
                 keyboard.append([InlineKeyboardButton("Join queue",
@@ -392,7 +393,7 @@ class Mainloop(object):
             bot.sendMessage(chat_id=user.id, 
                     text="Hello, {}. You are already in the queue.".format(user.username))
             self.chats[user.id] = 'start'
-        elif user.username not in self.admins.union(self.users):
+        elif user.username not in self.users:
             self.queue.add(user.username)
             self.save_config()
             bot.sendMessage(chat_id=user.id, 
@@ -418,7 +419,7 @@ class Mainloop(object):
         '''
         user = get_user(update)
         # If the message is from a truster user or admin, no special handling
-        if user.username in self.admins.union(self.users):
+        if user.username in self.users:
             pass
         
         # If the user is still in the queue, inform him/her
@@ -661,10 +662,26 @@ def format_server_address(server):
 
 def toset(string):
     '''
-    return a set of usernames from a comma-separated string.
+    return a set of strings from a concatenated string (comma-separated).
+    
     '''
     return set([item.strip() for item in string.split(',') if item.strip() != ''])
 
+
+def todict(string):
+    '''
+    return a dictionary from a concatenated string (comma-separated key:value pairs).
+    
+    '''
+    out = dict()
+    for item in string.split(','):
+        if item.strip() != '':
+            if ":" in item:
+                key, value = item.split(":")
+                out[key.strip()] = value.strip()
+            else:
+                out[item.strip()] = None
+    return out
 
 def get_user(update):
     if update.message:
