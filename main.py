@@ -232,7 +232,8 @@ class Mainloop(object):
     
     def save_config(self):
         self.clean_config_data('admins', self.admins)
-        self.clean_config_data('users', self.users)
+        self.clean_config_data('users', dict([(key, value) for key, value in \
+                self.users.items() if key not in self.admins]))
         self.clean_config_data('queue', self.queue)
         self.clean_config_data('blocked', self.blocked)
        
@@ -402,7 +403,7 @@ class Mainloop(object):
             keyboard.extend(self.keyboards['back'])
         
         if status in ('newpin', 'pincheck'):
-            text = "Please enter your PIN using the following keys:"
+            text = "Please enter your PIN using the following buttons:"
             for row in range(2):
                 keyboard.append([])
                 for number in range(5):
@@ -687,7 +688,7 @@ class Mainloop(object):
     @Usercheck('admin')
     def approve(self, bot, update, username):
         user = get_user(update)
-        self.users.add(username)
+        self.users[username] = [None]
         self.queue.remove(username)
         self.save_config()
         bot.sendMessage(chat_id=user.id, 
@@ -817,7 +818,10 @@ def todict(string):
             if ":" in item:
                 key, value = item.split(":")
                 # Keep in list form
-                out[key.strip()] = [value.strip(' []')]
+                value = value.strip(' []')
+                if value == 'None':
+                    value = None
+                out[key.strip()] = [value]
             else:
                 out[item.strip()] = [None]
     return out
