@@ -58,7 +58,6 @@ class Usercheck(object):
                 instance.newchat(user)
             # PIN control
             if username in instance.users:
-                print("Hey: ", instance.pin_timer)
                 if instance.users[username][0] is None:
                     return instance.firstpin(bot, update)
                 elif time.time() - instance.chats[user.id]['lastpin'] > instance.pin_timer * 60:
@@ -293,7 +292,6 @@ class Mainloop(object):
             else:
                 self.chats[user.id]['pin'] = self.chats[user.id].get('pin', '') + pin_digit
                 if len(self.chats[user.id]['pin']) == 4:
-                    print("Heyfull:", self.chats[user.id]['pin'])
                     sha = hashlib.sha256(self.chats[user.id]['pin'].encode()).hexdigest()
                     # Entering a new PIN
                     if self.chats[user.id]['status'] == 'newpin':
@@ -343,7 +341,9 @@ class Mainloop(object):
                             if self.chats[user.id]['pintries'] < 3:
                                 bot.sendMessage(chat_id=user.id, 
                                         text="Wrong PIN. This was your {} try. "
-                                        "You will be locked after 3 attempts.".format(\
+                                        "You will be locked after 3 attempts. \n"
+                                        "If the connection is slow, please try "
+                                        "entering the four digits slowly.".format(\
                                         ["first", "second"][self.chats[user.id]['pintries'] - 1]))
                                 self.keyboard(bot, update)
                                 return
