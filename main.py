@@ -14,6 +14,7 @@ from configparser import ConfigParser
 from getpass import getpass
 from shutil import copyfileobj
 from threading import Timer
+import hashlib
 import time
 
 ## To install bs4:
@@ -29,13 +30,13 @@ from bs4 import BeautifulSoup
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, error
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 
-api = 'rundb/api/v1/'
+API = 'rundb/api/v1/'
 
 # Decorators
-class Userlevel(object):
+class Usercheck(object):
     '''
     This class holds a decorator that will be used to check for user privileges
-    after a command is received.
+    and PIN status after a command is received.
     
     '''
     
@@ -52,11 +53,21 @@ class Userlevel(object):
             instance.last_bot = bot
             user = get_user(update)
             username = user.username
-            chat = instance.chats[user.id]
+            # chat control
+            if user.id not in instance.chats:
+                instance.newchat(user)
+            # PIN control
+            if username in instance.users:
+                print("Hey: ", instance.pin_timer)
+                if instance.users[username][0] is None:
+                    return instance.firstpin(bot, update)
+                elif time.time() - instance.chats[user.id]['lastpin'] > instance.pin_timer * 60:
+                    instance.chats[user.id]['status'] = 'pincheck'
+                    return instance.pincheck(bot, update)
             if update.message:
-                text = update.message.text
+                logtext = update.message.text
             elif update.callback_query:
-                text = "[Button_{}]".format(update.callback_query.data)
+                logtext = "[Button_{}]".format(update.callback_query.data)
             else:
                 logging.warning("couldn't establish user. Update is:" + str(update))
                 return None
@@ -72,13 +83,13 @@ class Userlevel(object):
                 auth = instance.admins
             if auth is True or username in auth:
                 logging.info("Approved {0} command from: {1}".format( 
-                        text, username))
+                        logtext, username))
                 return action(*args)     
             else:
                 logging.info("Blocked {0} command from: {1}".format( 
-                        text, username))
+                        logtext, username))
                 bot.sendMessage(chat_id=user.id, 
-                        text=negate_text)
+                        logtext=negate_text)
                 return None
         return wrapper
 
@@ -94,6 +105,7 @@ class Mainloop(object):
                     ('server', 'Server address'),
                     ('user', 'Username for remote login to server')])),
             ('COMM', OrderedDict([
+                    ('pin', 'Ask for PIN at every X minutes (enter 0 for never):'),
                     ('admins', 'Administrators'),
                     ('users', 'Trusted users'),
                     ('queue', 'Join queue'),
@@ -107,7 +119,7 @@ class Mainloop(object):
             ])
     # Fields listed under `optionals` can be left blank in the config file;
     # 'users' specifically can be blank, because 'admins' cannot.
-    optionals = ['server', 'users', 'queue', 'blocked']
+    optionals = ['pin', 'users', 'queue', 'blocked']
 
     
     # Keyboard buttons, based on status
@@ -118,13 +130,13 @@ class Mainloop(object):
                  'tick': [[InlineKeyboardButton("Start ticking", callback_data='T')]],
                  'untick': [[InlineKeyboardButton("Stop ticking", callback_data='U')]],
                  'back': [[InlineKeyboardButton("Back", callback_data='B')]]
-                                 
-                                 }
+                 }
     
     images = [['Bead_density_200.png', 'bead density'],
               ['basecaller_results/wells_beadogram.png', 'bead quality data'],
               ['basecaller_results/readLenHisto2.png', 'read size distribution'],
               ['iontrace_Library.png', 'key signal data']]
+
     
     def __init__(self):
         self.admins = None
@@ -140,7 +152,7 @@ class Mainloop(object):
         self.chats = {}
         config_set = self.get_config()
         if not config_set:
-            print('Invalid configurations file. Aborting.')
+            print('Configurations could not be loaded. Aborting.')
             return None
         # Input user (if not in config) and password (always)
         user = self.config['NETWORK'].get('user', None)
@@ -168,7 +180,7 @@ class Mainloop(object):
         dispatcher.add_handler(CommandHandler('join', self.join))
         dispatcher.add_handler(CommandHandler('bye', self.bye))
         dispatcher.add_handler(CallbackQueryHandler(self.button))
-        
+       
         print('Listening...')
         self.updater.start_polling()
 
@@ -176,8 +188,11 @@ class Mainloop(object):
     # Config loading and saving
     def get_config(self):
         print('Reading configurations file...')
+        if not os.path.isfile("IonWatcher.cfg"):
+            print("Configuration file 'IonWatcher.cfg' not found.")
+            return False
         config = ConfigParser()
-        config.read('IonWatcher.cfg')
+        config.read("IonWatcher.cfg")
         
         # Checking data
         aborting = False
@@ -205,8 +220,12 @@ class Mainloop(object):
                 self.queue = toset(self.config['COMM']['queue'])
                 self.blocked = toset(self.config['COMM']['blocked'])
                 self.server = format_server_address(self.config['NETWORK']['server'])
+                # Compatibility with older config file with no "pin" data
+                if not 'pin' in self.config['COMM']:
+                    self.config['COMM']['pin'] = 30
+                self.pin_timer = float(self.config['COMM']['pin'])
+                
                 return True
-    
     
     def clean_config_data(self, configloc, userset):
         self.config['COMM'][configloc] = \
@@ -256,15 +275,94 @@ class Mainloop(object):
                 self.chats[user.id]['status'] = 'back'
                 self.keyboard(bot, update)
                 
-        
         elif query.data.startswith("App_"):
-                app_username = query.data[4:]
-                self.approve(bot, update, app_username)
+            app_username = query.data[4:]
+            self.approve(bot, update, app_username)
         
         elif query.data.startswith("Blo_"):
-                block_username = query.data[4:]
-                self.block(bot, update, block_username)
+            block_username = query.data[4:]
+            self.block(bot, update, block_username)
         
+        elif query.data.startswith("Pin_"):
+            pin_digit = query.data[4]
+            user = get_user(update)
+            if self.chats[user.id]['status'] not in ('newpin', 'pincheck'):
+                bot.sendMessage(chat_id=user.id, 
+                        text="You are not entering a pin right now.")
+                return
+            else:
+                self.chats[user.id]['pin'] = self.chats[user.id].get('pin', '') + pin_digit
+                if len(self.chats[user.id]['pin']) == 4:
+                    print("Heyfull:", self.chats[user.id]['pin'])
+                    sha = hashlib.sha256(self.chats[user.id]['pin'].encode()).hexdigest()
+                    # Entering a new PIN
+                    if self.chats[user.id]['status'] == 'newpin':
+                        if self.chats[user.id]['sha'] is None:
+                            # This was the first round - still need to double check
+                            self.chats[user.id]['sha'] = sha
+                            self.chats[user.id]['pin'] = ''
+                            bot.sendMessage(chat_id=user.id, 
+                                    text="Enter the new PIN a second time.")
+                            self.keyboard(bot, update)
+                            return
+                        else:
+                            # Second round - the PIN must match to be valid
+                            if self.chats[user.id]['sha'] == sha:
+                                # This will keep updated both self.users and self.admins
+                                self.users[user.username][0] = sha
+                                self.chats[user.id]['lastpin'] = time.time()
+                                self.chats[user.id]['sha'] = None
+                                self.chats[user.id]['pin'] = ''
+                                self.save_config()
+                                bot.sendMessage(chat_id=user.id, 
+                                        text="Thank you. You PIN was saved.")
+                                self.chats[user.id]['status'] = 'start'
+                                self.keyboard(bot, update)
+                                return
+                            else:
+                                bot.sendMessage(chat_id=user.id, 
+                                        text="Your two entries did not match. Restarting.")
+                                self.chats[user.id]['sha'] = None
+                                self.chats[user.id]['pin'] = ''
+                                self.keyboard(bot, update)
+                                return
+                    # Just checking the PIN
+                    elif self.chats[user.id]['status'] == 'pincheck':
+                        if self.users[user.username][0] == sha:
+                            self.chats[user.id]['pintries'] = 0
+                            self.chats[user.id]['lastpin'] = time.time()
+                            self.chats[user.id]['pin'] = ''
+                            bot.sendMessage(chat_id=user.id, 
+                                    text="Thank you! You may now enter commands.")
+                            self.chats[user.id]['status'] = 'start'
+                            self.keyboard(bot, update)
+                            return
+                        else:
+                            self.chats[user.id]['pintries'] = self.chats[user.id].get('pintries', 0) + 1
+                            self.chats[user.id]['pin'] = ''
+                            if self.chats[user.id]['pintries'] < 3:
+                                bot.sendMessage(chat_id=user.id, 
+                                        text="Wrong PIN. This was your {} try. "
+                                        "You will be locked after 3 attempts.".format(\
+                                        ["first", "second"][self.chats[user.id]['pintries'] - 1]))
+                                self.keyboard(bot, update)
+                                return
+                            else:
+                                self.users.pop(user.username)
+                                if user.username in self.admins:
+                                    self.admins.pop(user.username)
+                                self.queue.add(user.username)
+                                self.save_config()
+                                self.chats[user.id]['pin'] = ''
+                                self.chats[user.id]['pintries'] = 0
+                                bot.sendMessage(chat_id=user.id, 
+                                        text="You have entered a wrong PIN thrice and " + \
+                                                "have been returned to the queue.\n" + \
+                                                "Please contact an administrator.")
+                                logging.info("User {} has been returned to the queue "
+                                             "for failing 3 authentication attempts.".format(\
+                                                     user.username))
+                                return
 
     def keyboard(self, bot, update):
         '''
@@ -274,6 +372,7 @@ class Mainloop(object):
         user = get_user(update)
         text = "How can I help you, {}?".format(user.first_name)
         status = self.chats[user.id]['status']
+        markup = InlineKeyboardMarkup
         if status == 'start':
             if user.username in self.users:
                 keyboard.extend(self.keyboards['start'])
@@ -299,11 +398,18 @@ class Mainloop(object):
             elif user.username in self.users:
                 text = "End of queue."
         
-        if status == 'back' or status != 'start':
+        if status == 'back' or status not in ('start', 'newpin', 'pincheck'):
             keyboard.extend(self.keyboards['back'])
         
-           
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        if status in ('newpin', 'pincheck'):
+            text = "Please enter your PIN using the following keys:"
+            for row in range(2):
+                keyboard.append([])
+                for number in range(5):
+                    strnum = str(5 * row + number)
+                    keyboard[-1].append(InlineKeyboardButton(strnum,
+                                                              callback_data='Pin_'+strnum))
+        reply_markup = markup(keyboard)
         bot.sendMessage(chat_id=user.id, text=text, reply_markup=reply_markup)
 
 
@@ -329,7 +435,7 @@ class Mainloop(object):
         
         flag = ''
         
-        api_page = self.server+api+'monitorresult/'
+        api_page = self.server+API+'monitorresult/'
         
         logging.info("Contacting: "+api_page)
         try:
@@ -338,8 +444,8 @@ class Mainloop(object):
                                          verify=False)
             monitor_json = json.loads(response.text)
             
-        except Exception as exc:
-            logging.warning("Server unreachable or bad auth: " + exc)
+        except:
+            logging.warning("Server unreachable or bad auth.")
             flag = 'no_connection'
             return [None, flag]
         flag = 'ok'
@@ -378,9 +484,34 @@ class Mainloop(object):
         except:
             return None
 
+    # Adding a new chat
+    def newchat(self, user):
+        self.chats[user.id] = {'status': 'start', 'lastpin': 0}
+        logging.info("Initiated chat with user: {}".format(user.username))
+        
+    # Registering a new pin
+    def firstpin(self, bot, update):
+        user = get_user(update)
+        bot.sendMessage(chat_id=user.id, text="Please choose a 4-digit PIN.")
+        self.chats[user.id]['status'] = 'newpin'
+        self.chats[user.id]['pin'] = ''
+        self.chats[user.id]['sha'] = None
+        self.keyboard(bot, update)
+        
+
+    # Entering a pin
+    def pincheck(self, bot, update):
+        user = get_user(update)
+        bot.sendMessage(chat_id=user.id, text="Please enter your PIN.")
+        self.chats[user.id]['status'] = 'pincheck'
+        self.chats[user.id]['pin'] = ''
+        self.keyboard(bot, update)
+        
+
+
     # User actions
     # For practicality, both `join` and `start` are entry points for new chats.
-    @Userlevel('any')
+    @Usercheck('any')
     def join(self, bot, update):
         '''
         Add the user to the join queue, or view queue if admin
@@ -391,7 +522,7 @@ class Mainloop(object):
                     text="Hello, {}. You are already in the queue.".format(user.username))
             self.chats[user.id]['status'] = 'start'
         elif user.username not in self.users:
-            self.chats[user.id] = {'status': 'join', 'lastpin': 0}
+            self.chats[user.id]['status'] = 'join'
             self.queue.add(user.username)
             self.save_config()
             bot.sendMessage(chat_id=user.id, 
@@ -409,7 +540,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
 
 
-    @Userlevel('any')
+    @Usercheck('any')
     def start(self, bot, update):
         '''
         The basic command to start a chat.
@@ -430,22 +561,22 @@ class Mainloop(object):
         
         # If it's a new user, greet him/her
         else:
-            self.chats[user.id] = {'status': 'start', 'lastpin': 0}
             bot.sendMessage(chat_id=user.id, 
                             text=self.config['MESSAGES']['start'])
         self.chats[user.id]['status'] = 'start'
         self.keyboard(bot, update)
     
 
-    @Userlevel('user')
+    @Usercheck('user')
     def bye(self, bot, update):
         user = get_user(update)
         self.chats[user.id]['status'] = 'bye'
+        self.chats[user.id]['lastpin'] = 0
         bot.sendMessage(chat_id=user.id, 
                         text="Goodbye, {}. Type /start to restart.".format(user.first_name))
 
 
-    @Userlevel('user')
+    @Usercheck('user')
     def monitor(self, bot, update):
         '''
         Return data about the current runs in progress.
@@ -499,7 +630,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
 
 
-    @Userlevel('user')
+    @Usercheck('user')
     def run_report(self, bot, update, run):
         user = get_user(update)
         # TODO see flows
@@ -553,7 +684,7 @@ class Mainloop(object):
 
 
 
-    @Userlevel('admin')
+    @Usercheck('admin')
     def approve(self, bot, update, username):
         user = get_user(update)
         self.users.add(username)
@@ -564,7 +695,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
     
 
-    @Userlevel('admin')
+    @Usercheck('admin')
     def block(self, bot, update, username):
         user = get_user(update)
         self.blocked.add(username)
@@ -575,7 +706,7 @@ class Mainloop(object):
         self.keyboard(bot, update)
 
 
-    @Userlevel('admin')
+    @Usercheck('admin')
     def kill(self, bot, update):
         '''
         Stop the updater.
@@ -586,7 +717,7 @@ class Mainloop(object):
         #self.updater.stop() # is just not working to stop the script
         os._exit(0)
     
-    @Userlevel('admin')
+    @Usercheck('admin')
     def tick(self, bot, update):
         '''
         Start ticking system uptime every half an hour.
@@ -597,7 +728,7 @@ class Mainloop(object):
                         text=self.config['MESSAGES']['tick'])        
         self.send_tick(user, bot, complete=True)
         
-    @Userlevel('admin')
+    @Usercheck('admin')
     def untick(self, bot, update):
         '''
         Start ticking system uptime every half an hour.
@@ -685,9 +816,10 @@ def todict(string):
         if item.strip() != '':
             if ":" in item:
                 key, value = item.split(":")
-                out[key.strip()] = value.strip()
+                # Keep in list form
+                out[key.strip()] = [value.strip(' []')]
             else:
-                out[item.strip()] = None
+                out[item.strip()] = [None]
     return out
 
 def get_user(update):
