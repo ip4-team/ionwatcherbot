@@ -57,12 +57,13 @@ class Usercheck(object):
             if user.id not in instance.chats:
                 instance.newchat(user)
             # PIN control
-            if username in instance.users:
-                if instance.users[username][0] is None:
-                    return instance.firstpin(bot, update)
-                elif time.time() - instance.chats[user.id]['lastpin'] > instance.pin_timer * 60:
-                    instance.chats[user.id]['status'] = 'pincheck'
-                    return instance.pincheck(bot, update)
+            if instance.pin_timer != 0:
+                if username in instance.users:
+                    if instance.users[username][0] is None:
+                        return instance.firstpin(bot, update)
+                    elif time.time() - instance.chats[user.id]['lastpin'] > instance.pin_timer * 60:
+                        instance.chats[user.id]['status'] = 'pincheck'
+                        return instance.pincheck(bot, update)
             if update.message:
                 logtext = update.message.text
             elif update.callback_query:
@@ -222,7 +223,7 @@ class Mainloop(object):
                 # Compatibility with older config file with no "pin" data
                 if not 'pin' in self.config['COMM']:
                     self.config['COMM']['pin'] = 30
-                self.pin_timer = float(self.config['COMM']['pin'])
+                self.pin_timer = int(self.config['COMM']['pin'])
                 
                 return True
     
@@ -292,7 +293,7 @@ class Mainloop(object):
                 return
             else:
                 self.chats[user.id]['pin'] = self.chats[user.id].get('pin', '') + pin_digit
-                if len(self.chats[user.id]['pin']) == 4:
+                if len(self.chats[user.id]['pin']) >= 4:
                     sha = hashlib.sha256(self.chats[user.id]['pin'].encode()).hexdigest()
                     # Entering a new PIN
                     if self.chats[user.id]['status'] == 'newpin':
@@ -682,7 +683,6 @@ class Mainloop(object):
                     bot.sendMessage(chat_id=user.id,
                                     text="[no {} image]".format(image_data[1]))
         self.report_link(bot, update, run)
-
 
 
     @Usercheck('admin')
