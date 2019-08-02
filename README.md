@@ -4,7 +4,7 @@
 
 IonWatcherBot is a simple [Telegram bot](https://core.telegram.org/bots) which, when connected to an [Ion Torrent](https://en.wikipedia.org/wiki/Ion_semiconductor_sequencing) Server via network, is able to fetch information about runs in progress and send it to trusted users, without exposing the Torrent Server itself outside the network.
 
-IonWatcherBot is currently in **early alpha version**.
+IonWatcherBot is currently in **early alpha version** (v0.1.0).
 
 
 # How to install IonWatcherBot #
@@ -92,3 +92,4 @@ A . Yes, but please do not delete the `download` directory. The bot expects it t
 
 **8 . How secure are messages and data sent to and from IonWatcherBot?**  
 A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's point-to-point [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
+As an additional security measure, an optional PIN access control has been added on version 0.1.0. When PIN control is active, all users and admins will have to enter a PIN regularly to keep issuing commands. Please note, however, that this feature is only designed to stop a party having unauthorized access to a user's chat from issuing commands while the user is not actively using the bot. The strongest security feature of IonWatcherBot is the lack of access, by design, to sensitive sequencing data.
