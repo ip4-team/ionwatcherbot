@@ -44,13 +44,23 @@ class Usercheck(object):
     
     def __init__(self, userlevel):
         '''
-        `userlevel` can be: 'any', 'user', 'admin'.
+        :param str userlevel: `userlevel` can be: 'any', 'user', or 'admin'.
         '''
         self.userlevel = userlevel
+
     
     def __call__(self, action):
-        def wrapper(*args):
-            instance, bot, update = args[:3]
+        '''
+        :param action: the decorated function.
+        '''
+        def wrapper(instance, bot, update, *args):
+            '''
+            Wrapper function. Typical args include `bot`,
+            :param instance: the 'Mainloop' (self) instance whose function is decorated.
+            :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+            :param update: the received update, automatically informed by python-telegram-bot.
+            :param args: any other arguments
+            '''
             instance.last_update = update
             instance.last_bot = bot
             user = update.effective_user
@@ -86,18 +96,22 @@ class Usercheck(object):
             if auth is True or username in auth:
                 logging.info("Approved {0} command from: {1}".format( 
                         logtext, username))
-                return action(*args)     
+                return action(instance, bot, update, *args)     
             else:
                 logging.info("Blocked {0} command from: {1}".format( 
                         logtext, username))
                 bot.sendMessage(chat_id=user.id, 
-                        logtext=negate_text)
+                        text=negate_text)
                 return None
         return wrapper
 
-class Mainloop(object):
+
+class Mainloop:
+    '''
+    This class harbors the main bot loop.
+    '''
     
-    # The cfg_text variable holds the basic structure of the config file.
+    # The `cfg_text` variable holds the basic structure of the config file.
     # At instantiation, the config file is checked for the fields listed here.
     # When saving a config file, only the fields listed here will be saved.
     cfg_text = OrderedDict([
@@ -119,11 +133,11 @@ class Mainloop(object):
                     ('untick', '/untick command is received by an admin'),
                     ('negate', 'Command issued by unauthorized user')]))
             ])
-    # Fields listed under `optionals` can be left blank in the config file;
-    # 'users' specifically can be blank, because 'admins' cannot.
+    # Fields listed under `optionals` can be left blank in the config file.
+    # 'pin' can be blank for compatibility with config files previous to v0.1.0.
+    # 'users' can be blank because there will always be at least one member in 'admins'.
     optionals = ['pin', 'users', 'queue', 'blocked']
 
-    
     # Keyboard buttons, based on status
     keyboards = {'start': [[InlineKeyboardButton("Monitor runs", callback_data='M')],
                            [InlineKeyboardButton("View queue", callback_data='Q')],
@@ -133,7 +147,8 @@ class Mainloop(object):
                  'untick': [[InlineKeyboardButton("Stop ticking", callback_data='U')]],
                  'back': [[InlineKeyboardButton("Back", callback_data='B')]]
                  }
-    
+
+    # File location and description of downloadable images on the server    
     images = [['Bead_density_200.png', 'bead density'],
               ['basecaller_results/wells_beadogram.png', 'bead quality data'],
               ['basecaller_results/readLenHisto2.png', 'read size distribution'],
@@ -148,12 +163,16 @@ class Mainloop(object):
         self.rt = dict() # {id: RepeatTimer()}
         self.runs = dict()
         
-        # chats are stored as: {id: {'status': <status>, 'lastpin': <time>}, 
-        # where 'status' can be: 'start', 'join', 'monitor', 'back', 'bye'
+        # chats are stored minimally as: {id: {'status': <status>, 'lastpin': <time>}, 
+        # where 'id' links ot the user's Telegram ID;
+        # 'status' refers to the current activity of the user and can be
+        # one of: 'start', 'join', 'monitor', 'back', 'bye', 'newpin', 'pincheck';
         # and 'lastpin' is the last time the user entered their pin.
+        # Other keys are temporarily stored in this dictionary for PIN checking:
+        # they are 'sha', 'pin', and 'pintries'.
         self.chats = {}
-        config_set = self.get_config()
-        if not config_set:
+        config_is_set = self.get_config()
+        if not config_is_set:
             print('Configurations could not be loaded. Aborting.')
             os._exit(0)
         self.connect()
@@ -176,20 +195,25 @@ class Mainloop(object):
         dispatcher.add_handler(CommandHandler('join', self.join))
         dispatcher.add_handler(CommandHandler('bye', self.bye))
         dispatcher.add_handler(CallbackQueryHandler(self.button))
-       
+
+        # Start
         print('Listening...')
         self.updater.start_polling()
 
 
     def connect(self):
+        '''
+        Connect to the instrument's server.
+        '''
         flag = 'init'
-        user = self.config['NETWORK'].get('user', None)
+        username = self.config['NETWORK'].get('user', None)
         while flag != 'ok':
             # Input user (if not in config) and password (always)
-            if not user:
-                user = notblank('Username at {}'.format(self.server))
-            self.auth = requests.auth.HTTPBasicAuth(user,
+            if not username:
+                username = notblank('Username at {}'.format(self.server))
+            self.auth = requests.auth.HTTPBasicAuth(username,
                                                     notblank('password', secret=True))
+            # Try if connection works
             runs, flag = self.read_monitor()
             if flag != 'ok':
                 opt = input("No connection or bad auth. (A)bort, (R)etry, (I)gnore? ")
@@ -206,16 +230,16 @@ class Mainloop(object):
                     pass
                 
                 
-    # Config loading and saving
     def get_config(self):
+        '''
+        Load configurations from the IonWatcher.cfg file.
+        '''
         print('Reading configurations file...')
         if not os.path.isfile("IonWatcher.cfg"):
             print("Configuration file 'IonWatcher.cfg' not found.")
             return False
         config = ConfigParser()
         config.read("IonWatcher.cfg")
-        
-        # Checking data
         aborting = False
         for category, items in self.cfg_text.items():
             for item in items:
@@ -234,26 +258,39 @@ class Mainloop(object):
                 return False
             else:
                 self.config = config
-                # Admins, users and queue must be transformed to list; pair with save_config
+                # admins, users data must be loaded to adict;
+                # queue and blocked can just be a set.
+                # This must always be paired with `save_config`.
                 self.admins = todict(self.config['COMM']['admins'])
                 self.users = todict(self.config['COMM']['users'])
+                # Admins are also loaded in the users dict, for easiness of checking privileges.
                 self.users.update(self.admins)
                 self.queue = toset(self.config['COMM']['queue'])
                 self.blocked = toset(self.config['COMM']['blocked'])
                 self.server = format_server_address(self.config['NETWORK']['server'])
                 # Compatibility with older config file with no "pin" data
                 if not 'pin' in self.config['COMM']:
-                    self.config['COMM']['pin'] = 30
+                    self.config['COMM']['pin'] = '0'
                 self.pin_timer = int(self.config['COMM']['pin'])
-                
                 return True
     
-    def clean_config_data(self, configloc, userset):
+
+    def clean_config_data(self, configloc, users):
+        '''
+        Remove unwanted characters for saving config; empty sets/dicts become ''
+        :param str configloc: config key (always in 'COMM') to be updated
+        :param users: users dict or set.
+        '''
         self.config['COMM'][configloc] = \
-                [re.sub('[\{\}\']', '', str(userset)), ''][userset == set()]
+                [re.sub('[\{\}\']', '', str(users)), ''][len(users) == 0]
+    
     
     def save_config(self):
+        '''
+        Save configuration data to the IonWatcher.cfg file.
+        '''
         self.clean_config_data('admins', self.admins)
+        # Remove admins here to avoid saving them twice
         self.clean_config_data('users', dict([(key, value) for key, value in \
                 self.users.items() if key not in self.admins]))
         self.clean_config_data('queue', self.queue)
@@ -272,8 +309,14 @@ class Mainloop(object):
     # Bot methods, ordered by user level and then alphabetically
     # The first are general methods; no clearance
     def button(self, bot, update):
+        '''
+        Handler for all button events.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        '''
         query = update.callback_query
         self.this_query = query
+        # In all of the following cases, execute the relative function.
         sender = {'M': self.monitor,
                   'Q': self.join,
                   'K': self.kill,
@@ -284,7 +327,8 @@ class Mainloop(object):
                   
         if query.data in sender:
             sender[query.data](bot, update)
-            
+        
+        # Handle run information requests
         elif query.data.startswith("Run_"):
             run_id = int(query.data[4:])
             this_run = self.runs.get(run_id, None)
@@ -296,7 +340,8 @@ class Mainloop(object):
                 logging.warning("Lost connection to Telegram.")
                 self.chats[user.id]['status'] = 'back'
                 self.keyboard(bot, update)
-                
+        
+        # Handle user approval and denial
         elif query.data.startswith("App_"):
             app_username = query.data[4:]
             self.approve(bot, update, app_username)
@@ -305,6 +350,7 @@ class Mainloop(object):
             block_username = query.data[4:]
             self.block(bot, update, block_username)
         
+        # Handle PIN inline keyboard events
         elif query.data.startswith("Pin_"):
             pin_digit = query.data[4]
             user = update.effective_user
@@ -316,7 +362,7 @@ class Mainloop(object):
                 self.chats[user.id]['pin'] = self.chats[user.id].get('pin', '') + pin_digit
                 if len(self.chats[user.id]['pin']) >= 4:
                     sha = hashlib.sha256(self.chats[user.id]['pin'].encode()).hexdigest()
-                    # Entering a new PIN
+                    # Handle setting a new PIN
                     if self.chats[user.id]['status'] == 'newpin':
                         if self.chats[user.id]['sha'] is None:
                             # This was the first round - still need to double check
@@ -347,7 +393,7 @@ class Mainloop(object):
                                 self.chats[user.id]['pin'] = ''
                                 self.keyboard(bot, update)
                                 return
-                    # Just checking the PIN
+                    # Handle checking a PIN versus the saved sha256 in config
                     elif self.chats[user.id]['status'] == 'pincheck':
                         if self.users[user.username][0] == sha:
                             self.chats[user.id]['pintries'] = 0
@@ -387,9 +433,12 @@ class Mainloop(object):
                                                      user.username))
                                 return
 
+
     def keyboard(self, bot, update):
         '''
-        Offer command options to the user.
+        Offer command options to the user, based on the user's current status.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         keyboard = []
         user = update.effective_user
@@ -437,6 +486,12 @@ class Mainloop(object):
 
 
     def report_link(self, bot, update, run):
+        '''
+        Attempt to deliver a run's PDF report.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        :param run: serialized run data read from the server by self.read_monitor().
+        '''
         user = update.effective_user
         run_dir_id = run['id']
         report_pdf = self.get_pdf(run_dir_id)
@@ -448,8 +503,6 @@ class Mainloop(object):
         self.keyboard(bot, update)
             
 
-
-    # Scraping
     def read_monitor(self):
         '''
         Scrape data about current runs from the server and return it.
@@ -477,8 +530,13 @@ class Mainloop(object):
         return [runs, flag]
 
 
-    # file retrieving
+    # file retrieving methods
     def get_image(self, run_id, filename):
+        '''
+        Attempt to retrieve an image file from the server.
+        :param run_id: the run's ID within the server.
+        :param filename: location of the image.
+        '''
         loc = 'report/{}/metal/{}'.format(run_id, filename)
         # Removing dirs from filename
         destname = filename[filename.rfind('/')+1:]
@@ -487,17 +545,30 @@ class Mainloop(object):
         
         
     def get_pdf(self, run_id):
+        '''
+        Attempt to retrieve an PDF file from the server.
+        :param run_id: the run's ID within the server.
+        '''
         loc = 'report/latex/{}.pdf'.format(run_id)
         dest = 'download/{}.pdf'.format(run_id)
         return self.get_file(loc, dest)
 
 
     def pdf(self, bot, update, report_id):
+        '''
+        Deliver a PDF file to the user.
+        '''
         user = update.effective_user
         with open('download/{}.pdf'.format(report_id), 'rb') as document:
             bot.sendDocument(chat_id=user.id, document=document)        
+
         
     def get_file(self, loc, dest):
+        '''
+        Generic method to retrieve a file from the server and save it locally.
+        :param loc: path to the file on the server.
+        :param dest: path to the locally saved copy.
+        '''
         try:
             response = requests.get(self.server+loc, auth=self.auth,
                                     verify=False, stream=True)
@@ -507,13 +578,22 @@ class Mainloop(object):
         except:
             return None
 
-    # Adding a new chat
+
     def newchat(self, user):
+        '''
+        Add a new chat to the dictionary of chats.
+        :param user: telegram.User object for the current user.
+        '''
         self.chats[user.id] = {'status': 'start', 'lastpin': 0}
         logging.info("Initiated chat with user: {}".format(user.username))
-        
-    # Registering a new pin
+
+       
     def firstpin(self, bot, update):
+        '''
+        Register a user's PIN.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        '''
         user = update.effective_user
         bot.sendMessage(chat_id=user.id, text="Please choose a 4-digit PIN.")
         self.chats[user.id]['status'] = 'newpin'
@@ -522,8 +602,12 @@ class Mainloop(object):
         self.keyboard(bot, update)
         
 
-    # Entering a pin
     def pincheck(self, bot, update):
+        '''
+        Verify a user's PIN.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        '''
         user = update.effective_user
         bot.sendMessage(chat_id=user.id, text="Please enter your PIN.")
         self.chats[user.id]['status'] = 'pincheck'
@@ -531,13 +615,14 @@ class Mainloop(object):
         self.keyboard(bot, update)
         
 
-
     # User actions
     # For practicality, both `join` and `start` are entry points for new chats.
     @Usercheck('any')
     def join(self, bot, update):
         '''
         Add the user to the join queue, or view queue if admin
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         user = update.effective_user
         if user.username in self.queue:
@@ -567,7 +652,8 @@ class Mainloop(object):
     def start(self, bot, update):
         '''
         The basic command to start a chat.
-        
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         user = update.effective_user
         # If the message is from a truster user or admin, no special handling
@@ -592,6 +678,11 @@ class Mainloop(object):
 
     @Usercheck('user')
     def bye(self, bot, update):
+        '''
+        If PIN is enabled, ask for PIN at next interaction. Also say goodbye.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        '''
         user = update.effective_user
         self.chats[user.id]['status'] = 'bye'
         self.chats[user.id]['lastpin'] = 0
@@ -603,7 +694,8 @@ class Mainloop(object):
     def monitor(self, bot, update):
         '''
         Return data about the current runs in progress.
-        
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         user = update.effective_user
         runs, flag = self.read_monitor()
@@ -655,6 +747,12 @@ class Mainloop(object):
 
     @Usercheck('user')
     def run_report(self, bot, update, run):
+        '''
+        Message run report data to the user.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        :param run: serialized run data read from the server by self.read_monitor().
+        '''
         user = update.effective_user
         # TODO see flows
         runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
@@ -708,6 +806,12 @@ class Mainloop(object):
 
     @Usercheck('admin')
     def approve(self, bot, update, username):
+        '''
+        Transfer a user from the queue to registered users.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        :param username: the user's Telegram nickname.
+        '''
         user = update.effective_user
         self.users[username] = [None]
         self.queue.remove(username)
@@ -719,6 +823,12 @@ class Mainloop(object):
 
     @Usercheck('admin')
     def block(self, bot, update, username):
+        '''
+        Transfer a user from the queue to blocked users.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        :param username: the user's Telegram nickname.
+        '''
         user = update.effective_user
         self.blocked.add(username)
         self.queue.remove(username)
@@ -731,29 +841,38 @@ class Mainloop(object):
     @Usercheck('admin')
     def kill(self, bot, update):
         '''
-        Stop the updater.
+        End execution of the bot.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         user = update.effective_user
         bot.sendMessage(chat_id=user.id, 
                         text=self.config['MESSAGES']['kill'])
         #self.updater.stop() # is just not working to stop the script
         os._exit(0)
+
     
     @Usercheck('admin')
     def tick(self, bot, update):
         '''
         Start ticking system uptime every half an hour.
+        This helps keeping the bot reachable by Telegram when its IP is not static.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         user = update.effective_user
         self.rt[user] = RepeatedTimer(30*60, self.send_tick, user, bot)
         bot.sendMessage(chat_id=user.id, 
                         text=self.config['MESSAGES']['tick'])        
         self.send_tick(user, bot, complete=True)
+
         
     @Usercheck('admin')
     def untick(self, bot, update):
         '''
-        Start ticking system uptime every half an hour.
+        Stop ticking system uptime every half an hour.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
         '''
         user = update.effective_user
         if self.rt.get(user, False):
@@ -761,7 +880,14 @@ class Mainloop(object):
             bot.sendMessage(chat_id=user.id, 
                             text=self.config['MESSAGES']['untick'])
     
+
     def send_tick(self, user, bot, complete = False):
+        '''
+        Send a "tick" to the user.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        :param complete: if True, information is more verbose.
+        '''
         global text
         response = requests.get(self.server+'configure/services/',
                                 auth=self.auth, 
@@ -786,14 +912,15 @@ class Mainloop(object):
         bot.sendMessage(chat_id=user.id,
                         text="Warning: Could not retrieve VM info.")
         return
-        
-        
-        
-        bot.sendMessage(chat_id=user.id, 
-                text=text[:50])
+
 
 # Helper functions
 def notblank(info, secret = False):
+    '''
+    Ask for input from the user; ask again if blank.
+    :param str info: The string to be presented to the user when asking for input.
+    :param bool secret: If True, use `getpass` to hide the user's text.
+    '''
     text = ''
     hidden = [input, getpass]
     while not text:
@@ -802,7 +929,13 @@ def notblank(info, secret = False):
 
 
 def format_server_address(server):
-    # Server address: add 'http://' if missing, add last '/' if missing etc
+    '''
+    Attempt to format server address stored by admins in IonWatcher.cfg.
+    Add 'http://' if missing, add last '/' if missing.
+    :param str server: The server string obtained from config.
+    :return: A (hopefully) correctly formed server string.
+    '''
+    
     if not server.startswith('http://') and not server.startswith('https://'):
         if not ':' in server:
             if not '//' in server:
@@ -822,16 +955,18 @@ def format_server_address(server):
 
 def toset(string):
     '''
-    return a set of strings from a concatenated string (comma-separated).
-    
+    Split a string into a set (separator is comma).
+    :param str string: The string to be separated.
+    :return: a set.
     '''
     return set([item.strip() for item in string.split(',') if item.strip() != ''])
 
 
 def todict(string):
     '''
-    return a dictionary from a concatenated string (comma-separated key:value pairs).
-    
+    Return a dictionary from a concatenated string (comma-separated key:value pairs).
+    :param str string: The string to be separated.
+    :return: a dictionary.
     '''
     out = dict()
     for item in string.split(','):
@@ -849,36 +984,64 @@ def todict(string):
 
 
 def pcsquares(value):
+    '''
+    Offer a visual representation of a number 0.0 - 1.0.
+    Return a string with unicode representations of open and closed boxes,
+    with each box representing the value of 0.2 (20%), rounded down.
+    :param value: The value to be represented (float or int).
+    '''
     valuepc = value  * 100
     blue = int(min((valuepc // 20)+1, 5))
     white = 5 - blue
     return  [u'\U0001F535' * blue + u'\U000026AA' * white, value]
+
     
 def mark(boolean):
+    '''
+    Return the unicode representation of a checked mark or an X.
+    :param bool boolean: The True / False information to represent visually.
+    '''
     return [u'\U0000274C', u'\U00002705'][boolean]
 
 
 def get_tag_text(bs4tag, tagstring):
+    '''
+    Return text from a beautofulsoup tag and string.
+    :param bs4tag: the tag to be searched for the string.
+    :param tagstring: the string to be searched within the tag.
+    '''
     taglist = bs4tag.find_all(tagstring)
     taglist = [collapse(item.text) for item in taglist]
     return taglist
 
+
 def collapse(text):
     '''
+    Collapse all whitespace in a string.
     Solution derived from StackOVerflow user Alex Martelli (.../95810/alex-martelli):
     https://stackoverflow.com/questions/1274906/collapsing-whitespace-in-a-string
-    
+    :param text: the text to be processed.
     '''
     rex = re.compile(r'\W+')
     return rex.sub(' ', text).strip()
 
+
 class RepeatedTimer(object):
     '''
+    Class used to offer periodic "ticks" to users.
     From StackOverflow user MestreLion (.../users/624066/mestrelion):
     https://stackoverflow.com/questions/474528/what-is-the-best-way-to-repeatedly-execute-a-function-every-x-seconds-in-python
     
     '''
+
     def __init__(self, interval, function, *args, **kwargs):
+        '''
+        Instantiate the timer.
+        :param interval: timer interval (in seconds).
+        :param function: the function to be called every x seconds.
+        :param args: any args to be passed to the functon.
+        :param kwargs: any kwargs to be passed to the functon.
+        '''
         self._timer     = None
         self.interval   = interval
         self.function   = function
@@ -887,10 +1050,12 @@ class RepeatedTimer(object):
         self.is_running = False
         self.start()
 
+
     def _run(self):
         self.is_running = False
         self.start()
         self.function(*self.args, **self.kwargs)
+
 
     def start(self):
         if not self.is_running:
@@ -898,10 +1063,10 @@ class RepeatedTimer(object):
             self._timer.start()
             self.is_running = True
 
+
     def stop(self):
         self._timer.cancel()
         self.is_running = False
-
 
 
 if __name__ == '__main__':
