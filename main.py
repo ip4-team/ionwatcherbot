@@ -5,7 +5,7 @@ Created on Sat Oct 15 17:08:42 2016
 @author: Roberto
 """
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 # TODO add "clean" to clean files and logs
 # TODO user administration
