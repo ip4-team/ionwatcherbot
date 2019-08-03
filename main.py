@@ -156,31 +156,7 @@ class Mainloop(object):
         if not config_set:
             print('Configurations could not be loaded. Aborting.')
             os._exit(0)
-        flag = 'init'
-        user = self.config['NETWORK'].get('user', None)
-        while flag != 'ok':
-            # Input user (if not in config) and password (always)
-            if not user:
-                user = notblank('Username at {}'.format(self.server))
-            self.auth = requests.auth.HTTPBasicAuth(user,
-                                                    notblank('password', secret=True))
-            runs, flag = self.read_monitor()
-            if flag != 'ok':
-                opt = input("No connection or bad auth. (A)bort, (R)etry, (I)gnore? ")
-                opt = opt.strip().upper()
-                while opt not in ("A", "R", "I"):
-                    opt = input("Invalid input. (A)bort, (R)etry, (I)gnore? ")
-                    opt = opt.strip().upper()
-                if opt == "A":
-                    print("Goodbye.")
-                    os._exit(0)
-                elif opt == "I":
-                    flag = 'ok'
-                else:
-                    pass
-                
-            
-            
+        self.connect()
         # Create updater and dispatcher
         self.updater = Updater(token=self.config['NETWORK']['token'])
         dispatcher = self.updater.dispatcher
@@ -205,6 +181,31 @@ class Mainloop(object):
         self.updater.start_polling()
 
 
+    def connect(self):
+        flag = 'init'
+        user = self.config['NETWORK'].get('user', None)
+        while flag != 'ok':
+            # Input user (if not in config) and password (always)
+            if not user:
+                user = notblank('Username at {}'.format(self.server))
+            self.auth = requests.auth.HTTPBasicAuth(user,
+                                                    notblank('password', secret=True))
+            runs, flag = self.read_monitor()
+            if flag != 'ok':
+                opt = input("No connection or bad auth. (A)bort, (R)etry, (I)gnore? ")
+                opt = opt.strip().upper()
+                while opt not in ("A", "R", "I"):
+                    opt = input("Invalid input. (A)bort, (R)etry, (I)gnore? ")
+                    opt = opt.strip().upper()
+                if opt == "A":
+                    print("Goodbye.")
+                    os._exit(0)
+                elif opt == "I":
+                    flag = 'ok'
+                else:
+                    pass
+                
+                
     # Config loading and saving
     def get_config(self):
         print('Reading configurations file...')
