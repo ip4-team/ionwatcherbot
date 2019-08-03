@@ -84,6 +84,7 @@ class Usercheck(object):
                 logging.warning("couldn't establish user. Update is:" + str(update))
                 return None
             negate_text = instance.config['MESSAGES']['negate']
+            # Access control
             if username in instance.blocked:
                 auth = [] # no access
                 negate_text = 'You have been blocked and cannot issue any command.'
