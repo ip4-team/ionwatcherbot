@@ -11,8 +11,8 @@ user = ionadmin
 
 [COMM]
 
-#Ask for PIN at every X minutes:
-pin = 30
+#Ask for PIN at every X minutes (enter 0 to skip PIN checks):
+pin = 0
 # Administrators
 admins = MyTelegramNickname
 # Trusted users

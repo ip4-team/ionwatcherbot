@@ -107,7 +107,7 @@ class Mainloop(object):
                     ('server', 'Server address'),
                     ('user', 'Username for remote login to server')])),
             ('COMM', OrderedDict([
-                    ('pin', 'Ask for PIN at every X minutes (enter 0 for never):'),
+                    ('pin', 'Ask for PIN at every X minutes (enter 0 to skip PIN checks):'),
                     ('admins', 'Administrators'),
                     ('users', 'Trusted users'),
                     ('queue', 'Join queue'),
