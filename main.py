@@ -53,7 +53,7 @@ class Usercheck(object):
             instance, bot, update = args[:3]
             instance.last_update = update
             instance.last_bot = bot
-            user = get_user(update)
+            user = update.effective_user
             username = user.username
             # chat control
             if user.id not in instance.chats:
@@ -291,7 +291,7 @@ class Mainloop(object):
             try:
                 self.run_report(bot, update, this_run)
             except error.TimedOut:
-                user = get_user(update)
+                user = update.effective_user
                 bot.sendMessage(chat_id=user.id, text="Sorry, I lost connection to Telegram while fulfilling your request.")
                 logging.warning("Lost connection to Telegram.")
                 self.chats[user.id]['status'] = 'back'
@@ -307,7 +307,7 @@ class Mainloop(object):
         
         elif query.data.startswith("Pin_"):
             pin_digit = query.data[4]
-            user = get_user(update)
+            user = update.effective_user
             if self.chats[user.id]['status'] not in ('newpin', 'pincheck'):
                 bot.sendMessage(chat_id=user.id, 
                         text="You are not entering a pin right now.")
@@ -392,7 +392,7 @@ class Mainloop(object):
         Offer command options to the user.
         '''
         keyboard = []
-        user = get_user(update)
+        user = update.effective_user
         text = "How can I help you, {}?".format(user.first_name)
         status = self.chats[user.id]['status']
         markup = InlineKeyboardMarkup
@@ -437,7 +437,7 @@ class Mainloop(object):
 
 
     def report_link(self, bot, update, run):
-        user = get_user(update)
+        user = update.effective_user
         run_dir_id = run['id']
         report_pdf = self.get_pdf(run_dir_id)
         if report_pdf:
@@ -493,7 +493,7 @@ class Mainloop(object):
 
 
     def pdf(self, bot, update, report_id):
-        user = get_user(update)
+        user = update.effective_user
         with open('download/{}.pdf'.format(report_id), 'rb') as document:
             bot.sendDocument(chat_id=user.id, document=document)        
         
@@ -514,7 +514,7 @@ class Mainloop(object):
         
     # Registering a new pin
     def firstpin(self, bot, update):
-        user = get_user(update)
+        user = update.effective_user
         bot.sendMessage(chat_id=user.id, text="Please choose a 4-digit PIN.")
         self.chats[user.id]['status'] = 'newpin'
         self.chats[user.id]['pin'] = ''
@@ -524,7 +524,7 @@ class Mainloop(object):
 
     # Entering a pin
     def pincheck(self, bot, update):
-        user = get_user(update)
+        user = update.effective_user
         bot.sendMessage(chat_id=user.id, text="Please enter your PIN.")
         self.chats[user.id]['status'] = 'pincheck'
         self.chats[user.id]['pin'] = ''
@@ -539,7 +539,7 @@ class Mainloop(object):
         '''
         Add the user to the join queue, or view queue if admin
         '''
-        user = get_user(update)
+        user = update.effective_user
         if user.username in self.queue:
             bot.sendMessage(chat_id=user.id, 
                     text="Hello, {}. You are already in the queue.".format(user.username))
@@ -569,7 +569,7 @@ class Mainloop(object):
         The basic command to start a chat.
         
         '''
-        user = get_user(update)
+        user = update.effective_user
         # If the message is from a truster user or admin, no special handling
         if user.username in self.users:
             pass
@@ -592,7 +592,7 @@ class Mainloop(object):
 
     @Usercheck('user')
     def bye(self, bot, update):
-        user = get_user(update)
+        user = update.effective_user
         self.chats[user.id]['status'] = 'bye'
         self.chats[user.id]['lastpin'] = 0
         bot.sendMessage(chat_id=user.id, 
@@ -605,7 +605,7 @@ class Mainloop(object):
         Return data about the current runs in progress.
         
         '''
-        user = get_user(update)
+        user = update.effective_user
         runs, flag = self.read_monitor()
         
         if flag == 'no_connection':
@@ -655,7 +655,7 @@ class Mainloop(object):
 
     @Usercheck('user')
     def run_report(self, bot, update, run):
-        user = get_user(update)
+        user = update.effective_user
         # TODO see flows
         runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
         run_dir_id = run['id']
@@ -708,7 +708,7 @@ class Mainloop(object):
 
     @Usercheck('admin')
     def approve(self, bot, update, username):
-        user = get_user(update)
+        user = update.effective_user
         self.users[username] = [None]
         self.queue.remove(username)
         self.save_config()
@@ -719,7 +719,7 @@ class Mainloop(object):
 
     @Usercheck('admin')
     def block(self, bot, update, username):
-        user = get_user(update)
+        user = update.effective_user
         self.blocked.add(username)
         self.queue.remove(username)
         self.save_config()
@@ -733,7 +733,7 @@ class Mainloop(object):
         '''
         Stop the updater.
         '''
-        user = get_user(update)
+        user = update.effective_user
         bot.sendMessage(chat_id=user.id, 
                         text=self.config['MESSAGES']['kill'])
         #self.updater.stop() # is just not working to stop the script
@@ -744,7 +744,7 @@ class Mainloop(object):
         '''
         Start ticking system uptime every half an hour.
         '''
-        user = get_user(update)
+        user = update.effective_user
         self.rt[user] = RepeatedTimer(30*60, self.send_tick, user, bot)
         bot.sendMessage(chat_id=user.id, 
                         text=self.config['MESSAGES']['tick'])        
@@ -755,7 +755,7 @@ class Mainloop(object):
         '''
         Start ticking system uptime every half an hour.
         '''
-        user = get_user(update)
+        user = update.effective_user
         if self.rt.get(user, False):
             self.rt[user].stop()
             bot.sendMessage(chat_id=user.id, 
@@ -847,13 +847,6 @@ def todict(string):
                 out[item.strip()] = [None]
     return out
 
-def get_user(update):
-    if update.message:
-        return update.message.from_user
-    elif update.callback_query:
-        return update.callback_query.from_user
-    else:
-        return None
 
 def pcsquares(value):
     valuepc = value  * 100
