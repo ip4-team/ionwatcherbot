@@ -183,7 +183,8 @@ class BotConfig:
         # Everything OK, adding the server to the instrument list
         self.instr[instr_id] = handler
         # Verify that the instrument-specific download directory exists
-        os.makedirs(instr_download_dir)
+        if not os.path.exists(instr_download_dir):
+            os.makedirs(instr_download_dir)
         
 
 def toset(string):

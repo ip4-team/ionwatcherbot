@@ -8,7 +8,7 @@ from .config import BotConfig
 from .decorators import Usercheck
 from .chat import Chat
 
-TICK_TIMER = 1 # minutes
+TICK_TIMER = 30 # minutes
 
 class Mainloop:
     '''
