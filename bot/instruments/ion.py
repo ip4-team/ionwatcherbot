@@ -18,11 +18,10 @@ class Handler:
     
     api = 'rundb/api/v1/'
     
-    def __init__(self, server, instr_id, mainloop):
+    def __init__(self, server, download_loc, mainloop):
         self.methods = OrderedDict([('Check runs in progress', self.monitor)])
         self.server = server
-        self.instr_id = instr_id
-        self.download_loc = "./download/{}/".format(instr_id)
+        self.download_loc = download_loc
         self.mainloop = mainloop
         self.init_specifics()
         # ("Button name", <method>, "callback_data")

@@ -4,6 +4,8 @@ from collections import OrderedDict
 from configparser import ConfigParser
 from .instruments.instruments import Instruments
 
+DOWNLOADS_MAIN_DIR = 'download'
+
 class BotConfig:
     # The `cfg_text` variable holds the basic structure of the config file.
     # At instantiation, the config file is checked for the fields listed here.
@@ -145,7 +147,8 @@ class BotConfig:
 
     def add_server(self, instr_id):
         server = format_server_address(self.config[instr_id]['server'])
-        handler = Instruments[self.config[instr_id]['type']](server, instr_id, self.main)
+        instr_download_dir = "./{}/{}".format(DOWNLOADS_MAIN_DIR, instr_id)
+        handler = Instruments[self.config[instr_id]['type']](server, instr_download_dir, self.main)
         username = self.config[instr_id]['user']
         flag = 'init'
         while flag != 'ok':
@@ -180,7 +183,7 @@ class BotConfig:
         # Everything OK, adding the server to the instrument list
         self.instr[instr_id] = handler
         # Verify that the instrument-specific download directory exists
-        os.makedirs("./downloads/"+instr_id)
+        os.makedirs(instr_download_dir)
         
 
 def toset(string):
