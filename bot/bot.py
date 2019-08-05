@@ -26,10 +26,11 @@ class Mainloop:
 
         # Keyboard buttons, based on status
         self.keyboards = {'administration': [[InlineKeyboardButton("Administration", callback_data='A')]],
-                          'admin': [[InlineKeyboardButton("View queue", callback_data='Q')],
-                                    [InlineKeyboardButton("Kill the bot", callback_data='K')],
-                                    [InlineKeyboardButton("Start ticking", callback_data='T')],
-                                    [InlineKeyboardButton("Stop ticking", callback_data='U')]],
+                          'admin': [[InlineKeyboardButton("Start ticking", callback_data='T'),
+                                    InlineKeyboardButton("Stop ticking", callback_data='U')],
+                                    [InlineKeyboardButton("View queue", callback_data='Q'),
+                                    InlineKeyboardButton("Download log", callback_data='L')],
+                                    [InlineKeyboardButton("Kill the bot", callback_data='K')]],
                           'exit': [[InlineKeyboardButton("Exit", callback_data='E')]],
                           'back': [[InlineKeyboardButton("Back", callback_data='B')]],
                           'instr': []
@@ -49,6 +50,7 @@ class Mainloop:
         dispatcher.add_handler(CommandHandler('tick', self.tick))
         dispatcher.add_handler(CommandHandler('untick', self.untick))
         dispatcher.add_handler(CommandHandler('join', self.join))
+        dispatcher.add_handler(CommandHandler('log', self.send_log))
         dispatcher.add_handler(CommandHandler('bye', self.bye))
         dispatcher.add_handler(CallbackQueryHandler(self.button))
 
@@ -72,6 +74,7 @@ class Mainloop:
             self.newchat(user)
         # In all of the following cases, execute the relative function.
         sender = {'A': self.admin,
+                  'L': self.send_log,
                   'Q': self.join,
                   'K': self.killwarning,
                   'T': self.tick,
@@ -369,6 +372,13 @@ class Mainloop:
         user = update.effective_user
         bot.sendMessage(chat_id=user.id, 
                         text="Please use the command /kill to stop the bot.")
+
+
+    @Usercheck('admin')
+    def send_log(self, bot, update):
+        user = update.effective_user
+        with open('IonWatcher.log', 'rb') as document:
+            bot.sendDocument(chat_id=user.id, document=document, filename='IonWatcher.log.txt')
 
         
     @Usercheck('admin')
