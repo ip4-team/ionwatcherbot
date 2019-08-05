@@ -18,9 +18,11 @@ class Handler:
     
     api = 'rundb/api/v1/'
     
-    def __init__(self, server, mainloop):
+    def __init__(self, server, instr_id, mainloop):
         self.methods = OrderedDict([('Check runs in progress', self.monitor)])
         self.server = server
+        self.instr_id = instr_id
+        self.download_loc = "./download/{}/".format(instr_id)
         self.mainloop = mainloop
         self.init_specifics()
         # ("Button name", <method>, "callback_data")
@@ -261,6 +263,55 @@ class Handler:
         return
 
 
+    # file retrieving methods
+    def get_image(self, run_id, filename):
+        '''
+        Attempt to retrieve an image file from the server.
+        :param run_id: the run's ID within the server.
+        :param filename: location of the image.
+        '''
+        loc = 'report/{}/metal/{}'.format(run_id, filename)
+        # Removing dirs from filename
+        destname = filename[filename.rfind('/')+1:]
+        dest = self.download_loc + '{}_{}'.format(run_id, destname)
+        return self.get_file(loc, dest)
+        
+        
+    def get_pdf(self, run_id):
+        '''
+        Attempt to retrieve an PDF file from the server.
+        :param run_id: the run's ID within the server.
+        '''
+        loc = 'report/latex/{}.pdf'.format(run_id)
+        dest = self.download_loc + '{}.pdf'.format(run_id)
+        return self.get_file(loc, dest)
+
+
+    def pdf(self, bot, update, report_id):
+        '''
+        Deliver a PDF file to the user.
+        '''
+        user = update.effective_user
+        with open(self.download_loc + '{}.pdf'.format(report_id), 'rb') as document:
+            bot.sendDocument(chat_id=user.id, document=document)        
+
+        
+    def get_file(self, loc, dest):
+        '''
+        Generic method to retrieve a file from the server and save it locally.
+        :param loc: path to the file on the server.
+        :param dest: path to the locally saved copy.
+        '''
+        try:
+            response = requests.get(self.server+loc, auth=self.auth,
+                                    verify=False, stream=True)
+            with open(dest, 'wb') as out_file:
+                copyfileobj(response.raw, out_file)
+            return dest
+        except:
+            return None
+    
+
 def get_tag_text(bs4tag, tagstring):
     '''
     Return text from a beautofulsoup tag and string.
@@ -282,54 +333,6 @@ def collapse(text):
     rex = re.compile(r'\W+')
     return rex.sub(' ', text).strip()
 
-    # file retrieving methods
-    def get_image(self, run_id, filename):
-        '''
-        Attempt to retrieve an image file from the server.
-        :param run_id: the run's ID within the server.
-        :param filename: location of the image.
-        '''
-        loc = 'report/{}/metal/{}'.format(run_id, filename)
-        # Removing dirs from filename
-        destname = filename[filename.rfind('/')+1:]
-        dest = 'download/{}_{}'.format(run_id, destname)
-        return self.get_file(loc, dest)
-        
-        
-    def get_pdf(self, run_id):
-        '''
-        Attempt to retrieve an PDF file from the server.
-        :param run_id: the run's ID within the server.
-        '''
-        loc = 'report/latex/{}.pdf'.format(run_id)
-        dest = 'download/{}.pdf'.format(run_id)
-        return self.get_file(loc, dest)
-
-
-    def pdf(self, bot, update, report_id):
-        '''
-        Deliver a PDF file to the user.
-        '''
-        user = update.effective_user
-        with open('download/{}.pdf'.format(report_id), 'rb') as document:
-            bot.sendDocument(chat_id=user.id, document=document)        
-
-        
-    def get_file(self, loc, dest):
-        '''
-        Generic method to retrieve a file from the server and save it locally.
-        :param loc: path to the file on the server.
-        :param dest: path to the locally saved copy.
-        '''
-        try:
-            response = requests.get(self.server+loc, auth=self.auth,
-                                    verify=False, stream=True)
-            with open(dest, 'wb') as out_file:
-                copyfileobj(response.raw, out_file)
-            return dest
-        except:
-            return None
-    
 
 def pcsquares(value):
     '''

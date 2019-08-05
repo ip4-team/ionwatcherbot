@@ -14,6 +14,9 @@ testing_data
 # Skip logfile
 *.log
 
+# Skip .pyc
+*.pyc
+
 # Skip downloads
 download/*.png
 download/*.pdf
