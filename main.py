@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import logging
 from bot.bot import Mainloop
 from version import __version__
