@@ -53,9 +53,13 @@ class Handler:
         '''
         user = update.effective_user
         run_dir_id = run['id']
-        report_pdf = self.get_pdf(run_dir_id)
-        if report_pdf:
-            self.pdf(bot, update, run_dir_id)
+        if run['status'] == 'Completed':
+            report_pdf = self.get_pdf(run_dir_id)
+            if report_pdf:
+                self.pdf(bot, update, run_dir_id)
+            else:
+                bot.sendMessage(chat_id=user.id, text=\
+                                "Run is complete, but I couldn't retrieve the pdf report.")
         else:
             bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
         self.chats[user.id]['status'] = 'monitor'
