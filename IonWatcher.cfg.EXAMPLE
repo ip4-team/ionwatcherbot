@@ -1,7 +1,6 @@
 # Configurations file for IonWatcher Bot
 
 [NETWORK]
-
 # Register your own copy of this bot with @BotFather, and save your own token below.
 token = aDdYoUrToKenHere:AskBotFatherForIt
 # Server address
@@ -10,7 +9,6 @@ server = myserver.mydomain.edu
 user = ionadmin
 
 [COMM]
-
 #Ask for PIN at every X minutes (enter 0 to skip PIN checks):
 pin = 0
 # Administrators
@@ -22,8 +20,21 @@ queue =
 # Blocked users
 blocked = 
 
-[MESSAGES]
+# INSTRUMENTS
+# Each equipment Must have a differently-named entry! (INSTRUMENT_01, INSTRUMENT_02...) 
+[INSTRUMENT_01]
+# Equipment name
+name = Ion Proton
+# Equipment type (supported: ion)
+type = ion
+# Equipment address
+server = myserver.mydomain.edu
+# Username (leave blank for none)
+user = ionadmin
+# Password (leave blank for none, write "ASK" to ask for a password)
+pass = ASK
 
+[MESSAGES]
 # Initial greeting, /start command is received by an unknown user
 start = Hello, I am the IonWatcher bot at the ### lab at ###. Please type /join if you wish to be added to the joining queue.
 # /kill command is received by an admin
@@ -33,3 +44,5 @@ negate = You are not authorized to issue this command. Please type /start to sta
 # tick and untick
 tick = Starting to tick VM uptime.
 untick = Stopped ticking VM uptime.
+
+

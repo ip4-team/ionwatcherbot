@@ -1,6 +1,9 @@
 syntax: glob
 
+# Skip all pycaches
 __pycache__
+bot/__pycache__
+instruments/__pycache__
 
 # Skip testing data
 testing_data
@@ -10,6 +13,9 @@ testing_data
 
 # Skip logfile
 *.log
+
+# Skip .pyc
+*.pyc
 
 # Skip downloads
 download/*.png
