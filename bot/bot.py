@@ -110,11 +110,11 @@ class Mainloop:
             for _button_name, method, local_callback_data in instr_handler.keyboard:
                 full_callback_data = context + '_' + local_callback_data
                 command[full_callback_data] = [method, local_callback_data]
-                if query.data in command.keys():
-                    # Ugly but works
-                    next_status = command[query.data][0](bot, update, command[query.data][1])
-                    self.chats[user.id].set_status(next_status)
-                    self.keyboard(bot, update)
+            if query.data in command.keys():
+                # Ugly but works
+                next_status = command[query.data][0](bot, update, command[query.data][1])
+                self.chats[user.id].set_status(next_status)
+                self.keyboard(bot, update)
             
         # Handle PIN inline keyboard events
         elif query.data.startswith("Pin_"):
@@ -151,11 +151,12 @@ class Mainloop:
         '''
         keyboard = []
         user = update.effective_user
-        text = "How can I help you, {}?".format(user.first_name)
+        text = "Choose an action:                    "
         status = self.chats[user.id].status
         context = self.chats[user.id].context
         markup = InlineKeyboardMarkup
         if status == 'start':
+            text = "How can I help you, {}?".format(user.first_name)
             if user.username in self.cfg.admins:
                 keyboard.extend(self.keyboards['administration'])
             if user.username in self.cfg.users:
@@ -169,7 +170,7 @@ class Mainloop:
 
         if status == 'join':
             if user.username in self.cfg.admins:
-                text = "Choose any action:"
+                text = "Approve or block these users:"
                 for queued in self.cfg.queue:
                     keyboard.append([InlineKeyboardButton("Approve "+queued, 
                                                           callback_data='App_'+queued),

@@ -61,9 +61,6 @@ class Handler:
                                 "Run is complete, but I couldn't retrieve the pdf report.")
         else:
             bot.sendMessage(chat_id=user.id, text="The pdf report is not ready yet.")
-        self.chats[user.id]['status'] = 'monitor'
-        self.keyboard(bot, update)
-            
 
     
     # EACH INSTRUMENT-SPECIFIC METHOD MUST:
@@ -127,8 +124,9 @@ class Handler:
                           'Status: {}'.format(run_dir_id, runname,         
                                               run_status))
                 bot.sendMessage(chat_id=user.id, text=string)
-            self.keyboard.append([(str(run), self.run_report, \
-                                   'Run_'+str(run)) for run in self.runs])
+            for run in self.runs:
+                self.keyboard.append(["View run " + str(run).rjust(4, ' '), \
+                                      self.run_report, 'Run_'+str(run)])
         return 'instr'
         
         
@@ -143,20 +141,22 @@ class Handler:
         :param callback_data: the callback_data string, that contains the run ID.
         '''
         user = update.effective_user
-        
         # runs         
         run_id = int(callback_data[4:])
         run = self.runs.get(run_id, None)
         try:
-            self.run_report(bot, update, run)
+            self.execute_report(bot, update, run)
         except error.TimedOut:
             bot.sendMessage(chat_id=user.id, text="Sorry, I lost connection to Telegram while fulfilling your request.")
             logging.warning("Lost connection to Telegram.")
             self.chats[user.id].set_status('start')
-            self.keyboard(bot, update)
-                
-                
+        finally:
+            return 'instr'
+
+
+    def execute_report(self, bot,  update, run):
         # TODO see flows
+        user = update.effective_user
         runname = re.sub('Auto_[\w]*?_', '', run['resultsName'])
         run_dir_id = run['id']
         
@@ -203,8 +203,8 @@ class Handler:
                 else:
                     bot.sendMessage(chat_id=user.id,
                                     text="[no {} image]".format(image_data[1]))
-        self.report_link(bot, update, run)
-
+            self.report_link(bot, update, run)
+        bot.sendMessage(chat_id=user.id, text="End of report.")
 
     def read_monitor(self):
         '''
