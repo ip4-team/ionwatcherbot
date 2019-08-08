@@ -315,6 +315,11 @@ class Mainloop:
 
     @Usercheck('admin')
     def admin(self, bot, update):
+        '''
+        Enter admin menu.
+        :param bot: telegram.bot.Bot instance, automatically informed by python-telegram-bot.
+        :param update: the received update, automatically informed by python-telegram-bot.
+        '''
         user = update.effective_user
         if user.username in self.cfg.admins:
             self.chats[user.id].set_status('admin')
