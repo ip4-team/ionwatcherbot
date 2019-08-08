@@ -3,10 +3,6 @@
 [NETWORK]
 # Register your own copy of this bot with @BotFather, and save your own token below.
 token = aDdYoUrToKenHere:AskBotFatherForIt
-# Server address
-server = myserver.mydomain.edu
-# Username for remote login to server
-user = ionadmin
 
 [COMM]
 #Ask for PIN at every X minutes (enter 0 to skip PIN checks):
