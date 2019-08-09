@@ -13,7 +13,7 @@ IonWatcherBot is currently in **early alpha version** (v0.1.0).
 
  * Python 3.5+ (I suggest [Anaconda Python](https://www.continuum.io/downloads))  
  * The [Beautiful Soup 4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) library (beautifulsoup4)  
- * The [Requests](http://docs.python-requests.org/en/master/) API (requests)  
+ * The [Requests](http://docs.python-requests.org/en/master/)library (requests)  
  * The [Python Telegram Bot](https://github.com/python-telegram-bot/python-telegram-bot) library (python-telegram-bot).
   
 2 . Download or clone the source code for IonWatcherBot to a computer with Internet access and with network connection to the Torrent Server.  
