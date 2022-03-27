@@ -2,10 +2,12 @@
 
 # What is IonWatcherBot #
 
-IonWatcherBot is a simple [Telegram bot](https://core.telegram.org/bots) which, when connected to an [Ion Torrent](https://en.wikipedia.org/wiki/Ion_semiconductor_sequencing) Server via network, is able to fetch information about runs in progress and send it to trusted users, without exposing the Torrent Server itself outside the network.
+IonWatcherBot is a simple [Telegram bot](https://core.telegram.org/bots) which, when connected to an [Ion Torrent](https://en.wikipedia.org/wiki/Ion_semiconductor_sequencing) Server via network, is able to fetch information about runs in progress and send it to trusted users, without exposing the Torrent Server itself outside the network.  
 
-IonWatcherBot is currently in **early alpha version** (v0.1.0).
+IonWatcherBot is currently in **early alpha version** (v0.1.0).  
 
+Example screens:  
+![Screenshot](iwb.png)
 
 # How to install IonWatcherBot #
 
@@ -14,7 +16,7 @@ IonWatcherBot is currently in **early alpha version** (v0.1.0).
  * Python 3.5+ (I suggest [Anaconda Python](https://www.continuum.io/downloads))  
  * The [Beautiful Soup 4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) library (beautifulsoup4)  
  * The [Requests](http://docs.python-requests.org/en/master/) library (requests)  
- * The [Python Telegram Bot](https://github.com/python-telegram-bot/python-telegram-bot) library (python-telegram-bot).
+ * The [Python Telegram Bot](https://github.com/python-telegram-bot/python-telegram-bot) library (python-telegram-bot).  
   
 2 . Download or clone the source code for IonWatcherBot to a computer with Internet access and with network connection to the Torrent Server.  
 
@@ -52,7 +54,7 @@ IonWatcherBot is currently in **early alpha version** (v0.1.0).
 # LICENSE #
 
 **IonWatcherBot is offered under the GNU General Public License.**  
-**Please read it here: https://www.gnu.org/copyleft/gpl.html**
+**Please read it here: https://www.gnu.org/copyleft/gpl.html**  
 
 
 # FAQ #
@@ -71,7 +73,7 @@ A . Yes. As an administrator, send the `/kill` command to terminate the script.
 A . The only activity available remotely is the approval or block of Telegram usernames listed within the "queue".   
 For security reasons, approval or removal of an admin is limited to manually editing the `IonWatcher.cfg` file from the computer hosting your IonWatcherBot.  
 Removal of users from the approved list and removal of usernames from the blocked list will possibly be added to the online options later in time. For now, these lists must also be edited manually.  
-When manually adding users to a list, please use commas `,` to separate usernames.
+When manually adding users to a list, please use commas `,` to separate usernames.  
 
 **5 . Will the bot keep running if I close the terminal/command window after I successfully launched it?**  
 A . Not *per se*; the bot would stop, but you can arrange on your own for it to keep running. On Linux, for example, you could use `screen` to run the bot without having to keep an active terminal:  
@@ -84,12 +86,12 @@ A . Not *per se*; the bot would stop, but you can arrange on your own for it to 
 To resume:  
 `screen -r`  
 
-**6 . Can I see who contacted the bot?**  
+**6 . Can I see who contacted my bot?**  
 A. Yes, although partially at the moment. Every command received by the bot, whether accepted or not, is stored in the logfile along with the username that issued it (`IonWatcher.log`).  
 
 **7 . Can I delete the logfile and the saved images/PDFs?**  
 A . Yes, but please do not delete the `download` directory. The bot expects it to be there.  
 
 **8 . How secure are messages and data sent to and from IonWatcherBot?**  
-A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's point-to-point [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.
-As an additional security measure, an optional PIN access control has been added on version 0.1.0. When PIN control is active, all users and admins will have to enter a PIN regularly to keep issuing commands. Please note, however, that this feature is only designed to stop a party having unauthorized access to a user's chat from issuing commands while the user is not actively using the bot. The strongest security feature of IonWatcherBot is the lack of access, by design, to sensitive sequencing data.
+A . They are fairly secure. Although IonWatcherBot does not offer a layer of encryption itself, all data exchanged via Telegram follows Telegram's point-to-point [encryption protocol](https://telegram.org/faq#q-how-secure-is-telegram) which, at the moment this FAQ is being written, is based on the MTProto protocol.  
+As an additional security measure, an optional PIN access control has been added on version 0.1.0. When PIN control is active, all users and admins will have to enter a PIN regularly to keep issuing commands. Please note, however, that this feature is only designed to stop a party having unauthorized access to a user's chat from issuing commands while the user is not actively using the bot. The strongest security feature of IonWatcherBot is the lack of access, by design, to sensitive sequencing data.  
