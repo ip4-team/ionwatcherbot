@@ -9,6 +9,9 @@ IonWatcherBot is currently in **early alpha version** (v0.1.0).
 Example screens:  
 ![Screenshot](iwb.png)
 
+![image](https://github.com/ip4-team/ionwatcherbot/assets/24945128/441ea1c1-7ffb-4be8-abf0-729ecd94dc1c)
+
+
 # How to install IonWatcherBot #
 
 1 . Requisites:  
